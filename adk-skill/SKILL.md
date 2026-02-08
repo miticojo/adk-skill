@@ -441,15 +441,30 @@ Configure per-agent via `generate_content_config=types.GenerateContentConfig(tem
 
 ---
 
-## Common Patterns
+## Design Patterns
 
-For detailed multi-agent patterns (hierarchical workflows, parallel writers with judge, agent transfer, guardrails, deployment, configuration), see [references/advanced-patterns.md](references/advanced-patterns.md).
+| Pattern | When to Use | ADK Implementation |
+|---------|------------|-------------------|
+| Sequential pipeline | Multi-step tasks with dependencies | `SequentialAgent` with ordered sub-agents |
+| Fan-out / Fan-in | Independent tasks then synthesis | `ParallelAgent` → merger `Agent` |
+| Reflection loop | Quality matters more than speed | `LoopAgent` with producer + critic agents |
+| Dynamic routing | Diverse inputs need different handling | Parent `Agent` with `sub_agents` (Auto-Flow) |
+| Layered fallback | Tool failures need graceful recovery | `SequentialAgent`: primary → fallback → response |
+| Guardrailed agent | Safety/compliance requirements | `before_model_callback` + `before_tool_callback` |
+| Resource tiering | Cost optimization under constraints | Different `model` per agent (Pro vs Flash) |
 
-**Key patterns summary:**
-- **Pipeline + validation**: SequentialAgent → LoopAgent (validator + fixer) → formatter
-- **Coordinator + specialists**: Root Agent with AgentTool-wrapped specialist agents
-- **Parallel research + synthesis**: ParallelAgent (researchers) → synthesizer
-- **Guardrailed agent**: before_model_callback to block unsafe content
+**Key design rules:**
+- One agent = one responsibility. Split agents with 5+ tools into specialists.
+- Use `output_key` for structured data flow between agents via state -- not free text.
+- Always set `max_iterations` on `LoopAgent` to prevent unbounded execution.
+- Separate generation from evaluation -- use a different agent to critique output (avoids self-review bias).
+- Write sub-agent `description` fields carefully -- they drive Auto-Flow routing decisions.
+- Use structured output (JSON/Pydantic) between pipeline stages for reliable data passing.
+- Embed reasoning steps in agent instructions: "1. Analyze → 2. Plan → 3. Execute → 4. Verify".
+- Always include a fallback route for unclear inputs -- ambiguous requests must not be silently misrouted.
+
+For hierarchical workflows, agent transfer, and deployment patterns, see [references/advanced-patterns.md](references/advanced-patterns.md).
+For comprehensive design patterns (chaining, reflection, planning, memory, error handling, HITL, guardrails, RAG, resource optimization, reasoning, evaluation, prompting), see [references/design-patterns.md](references/design-patterns.md).
 
 ---
 
