@@ -39,6 +39,7 @@ This guide shows Python examples. For Java, Go, and TypeScript patterns, see [re
 | Parallel execution | `ParallelAgent` with independent sub_agents |
 | Iterative refinement | `LoopAgent` with max_iterations or checker agent |
 | Agent-as-tool | Wrap agent with `AgentTool` for on-demand delegation |
+| Remote agent (A2A) | `RemoteA2aAgent` + `to_a2a()` for cross-service agents |
 | Custom tools | Python functions with type hints + docstrings |
 | Structured output | Pydantic model via `output_schema` + `output_key` |
 | State management | `callback_context.state` and `tool_context.state` |
@@ -465,6 +466,7 @@ Configure per-agent via `generate_content_config=types.GenerateContentConfig(tem
 
 For hierarchical workflows, agent transfer, and deployment patterns, see [references/advanced-patterns.md](references/advanced-patterns.md).
 For comprehensive design patterns (chaining, reflection, planning, memory, error handling, HITL, guardrails, RAG, resource optimization, reasoning, evaluation, prompting), see [references/design-patterns.md](references/design-patterns.md).
+For A2A (Agent-to-Agent) protocol patterns -- exposing agents as A2A servers, consuming remote agents with `RemoteA2aAgent`, agent cards, and cross-service communication -- see [references/a2a-protocol.md](references/a2a-protocol.md).
 
 ---
 
@@ -478,6 +480,7 @@ Steps must run in order? → SequentialAgent
 Steps are independent? → ParallelAgent
 Need iteration/refinement? → LoopAgent
 Need on-demand delegation? → AgentTool
+Remote agent, different service? → RemoteA2aAgent (A2A)
 Complex multi-stage? → Compose agent types
 ```
 
@@ -487,6 +490,7 @@ Complex multi-stage? → Compose agent types
 Simple function? → Python function with type hints
 Need state access? → Add ToolContext parameter
 Delegate to another agent? → AgentTool
+Remote agent over network? → RemoteA2aAgent (A2A protocol)
 External MCP server? → MCPToolset
 Database access? → ToolboxToolset
 Web search? → google_search (built-in)

@@ -2,6 +2,9 @@
 doc/
 adk-doc-full.txt
 
+# Test agents (not part of the skill)
+tests/
+
 # Claude Code project memory
 .claude/
 
