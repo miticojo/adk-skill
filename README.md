@@ -8,8 +8,9 @@ This skill gives your coding agent deep knowledge of ADK architecture, patterns,
 
 ```
 adk-skill/
-├── SKILL.md                          # Core instructions (493 lines)
+├── SKILL.md                          # Core instructions (497 lines)
 └── references/
+    ├── a2a-protocol.md               # A2A protocol: expose, consume, agent cards
     ├── design-patterns.md            # Agent design patterns & best practices
     ├── tools-reference.md            # FunctionTool, MCP, Toolbox, RAG patterns
     ├── advanced-patterns.md          # Multi-agent, deployment, safety, config
@@ -17,9 +18,10 @@ adk-skill/
     └── multi-language.md             # Java, Go, TypeScript patterns
 ```
 
-**SKILL.md** covers project structure, all 4 agent types (LlmAgent, SequentialAgent, ParallelAgent, LoopAgent), function tools, AgentTool, MCP integration, callbacks, state management, structured output, testing with InMemoryRunner, design patterns with key rules, decision guides, and links to external documentation.
+**SKILL.md** covers project structure, all 4 agent types (LlmAgent, SequentialAgent, ParallelAgent, LoopAgent), function tools, AgentTool, MCP integration, A2A remote agents, callbacks, state management, structured output, testing with InMemoryRunner, design patterns with key rules, decision guides, and links to external documentation.
 
 **Reference files** provide advanced patterns loaded on demand:
+- **a2a-protocol.md** -- A2A (Agent-to-Agent) protocol: exposing agents via `to_a2a()` and `adk api_server`, consuming with `RemoteA2aAgent`, agent cards, Go patterns, metadata propagation, testing, troubleshooting (validated with integration tests)
 - **design-patterns.md** -- 15 agent design patterns (sequential pipeline, fan-out/fan-in, reflection, routing, planning, error handling, HITL, guardrails, resource optimization, reasoning, context engineering, prompting), universal anti-patterns table, multi-agent collaboration models, state management rules, memory architecture
 - **tools-reference.md** -- FunctionTool, ToolboxToolset, MCP connections, RAG retrieval, long-running tools, best practices
 - **advanced-patterns.md** -- hierarchical workflows, parallel writers with judge, agent transfer, rate limiting, guardrails, Cloud Run/Vertex AI deployment, FastAPI, configuration, anti-patterns
@@ -93,6 +95,7 @@ The skill activates when you mention:
 - **Sequential**, **parallel**, or **loop** agent workflows
 - Agent **tools**, **callbacks**, **state management**
 - **Deploying agents**, **writing agent tests**
+- **A2A protocol**, **remote agents**, **agent-to-agent** communication
 - Integrating **MCP tools** with ADK
 
 ## Topics Covered
@@ -102,7 +105,7 @@ The skill activates when you mention:
 | Languages | Python, Java, Go, TypeScript with language-specific patterns |
 | Project Setup | Directory structure, `__init__.py`, `root_agent`, `pyproject.toml` |
 | Agent Types | LlmAgent, SequentialAgent, ParallelAgent, LoopAgent, composition |
-| Tools | Function tools, ToolContext, AgentTool, google_search, MCPToolset |
+| Tools | Function tools, ToolContext, AgentTool, google_search, MCPToolset, RemoteA2aAgent |
 | Callbacks | before/after agent, tool, and model hooks |
 | State | Session state, scopes (`app:`, `user:`, `temp:`), data flow between agents |
 | Output | Pydantic `output_schema` + `output_key` for structured data |
@@ -110,6 +113,7 @@ The skill activates when you mention:
 | Evaluation | 8 metrics, `adk eval` CLI, pytest, web UI, user simulation |
 | Design Patterns | Sequential pipeline, fan-out/fan-in, reflection, routing, planning, error handling, HITL, guardrails, resource tiering, reasoning, context engineering, 12 anti-patterns |
 | Patterns | Pipeline+validation, coordinator+specialists, parallel research, guardrails |
+| A2A Protocol | Expose via `to_a2a()`, consume via `RemoteA2aAgent`, agent cards, Python + Go |
 | Deployment | `adk run/web`, Cloud Run, Vertex AI, FastAPI |
 | Safety | before_model guardrails, LlmAsAJudge, ModelArmor |
 | External Docs | Links to official ADK docs and Google sample agents |
