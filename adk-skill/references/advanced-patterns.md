@@ -346,26 +346,7 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 ## Evaluation
 
-### Built-in Evaluation
-
-```bash
-adk eval my_agent tests/eval_data.json
-```
-
-### Eval Data Format
-
-```json
-[
-    {
-        "query": "What is the weather in Paris?",
-        "expected_tool_use": ["get_weather"],
-        "expected_intermediate_agent_responses": [
-            {"agent": "weather_agent", "contains": "Paris"}
-        ],
-        "reference": "The weather in Paris is..."
-    }
-]
-```
+For evaluation patterns, test data formats, metrics, and CI/CD integration, see [evaluation.md](evaluation.md).
 
 ---
 

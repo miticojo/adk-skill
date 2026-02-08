@@ -44,6 +44,7 @@ This guide shows Python examples. For Java, Go, and TypeScript patterns, see [re
 | State management | `callback_context.state` and `tool_context.state` |
 | MCP integration | `MCPToolset` with connection params |
 | Testing | `pytest` with `InMemoryRunner` |
+| Evaluation | EvalSet with `.test.json`, `adk eval` CLI, pytest |
 
 ---
 
@@ -424,6 +425,10 @@ async def test_agent():
         events.append(event)
     assert "expected" in events[-1].content.parts[0].text.lower()
 ```
+
+### Evaluation
+
+ADK provides built-in evaluation for tool correctness, response quality, and safety. Define eval cases in `.test.json` files and run with `adk eval`, `pytest`, or the web UI. See [references/evaluation.md](references/evaluation.md) for eval data formats, all 8 metrics, and patterns.
 
 ---
 
