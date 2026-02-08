@@ -8,10 +8,11 @@ This skill gives your coding agent deep knowledge of ADK architecture, patterns,
 
 ```
 adk-skill/
-├── SKILL.md                          # Core instructions (473 lines)
+├── SKILL.md                          # Core instructions (478 lines)
 └── references/
     ├── tools-reference.md            # FunctionTool, MCP, Toolbox, RAG patterns
     ├── advanced-patterns.md          # Multi-agent, deployment, safety, config
+    ├── evaluation.md                 # Eval data formats, 8 metrics, user simulation
     └── multi-language.md             # Java, Go, TypeScript patterns
 ```
 
@@ -19,7 +20,8 @@ adk-skill/
 
 **Reference files** provide advanced patterns loaded on demand:
 - **tools-reference.md** -- FunctionTool, ToolboxToolset, MCP connections, RAG retrieval, long-running tools, best practices
-- **advanced-patterns.md** -- hierarchical workflows, parallel writers with judge, agent transfer, rate limiting, guardrails, Cloud Run/Vertex AI deployment, FastAPI, configuration, evaluation, anti-patterns
+- **advanced-patterns.md** -- hierarchical workflows, parallel writers with judge, agent transfer, rate limiting, guardrails, Cloud Run/Vertex AI deployment, FastAPI, configuration, anti-patterns
+- **evaluation.md** -- eval data formats (EvalSet/EvalCase), all 8 built-in metrics, tool trajectory matching, rubric-based evaluation, user simulation, pytest integration, CLI and web UI, TypeScript support
 - **multi-language.md** -- Java (builder pattern, @Schema annotations, Maven), Go (struct config, launcher), TypeScript (Zod schemas, npm), cross-language tool comparison
 
 The skill also references the official [ADK documentation](https://google.github.io/adk-docs/llms.txt) and [ADK samples](https://github.com/google/adk-samples) for always up-to-date API details.
@@ -103,6 +105,7 @@ The skill activates when you mention:
 | State | Session state, scopes (`app:`, `user:`, `temp:`), data flow between agents |
 | Output | Pydantic `output_schema` + `output_key` for structured data |
 | Testing | `InMemoryRunner` with pytest |
+| Evaluation | 8 metrics, `adk eval` CLI, pytest, web UI, user simulation |
 | Patterns | Pipeline+validation, coordinator+specialists, parallel research, guardrails |
 | Deployment | `adk run/web`, Cloud Run, Vertex AI, FastAPI |
 | Safety | before_model guardrails, LlmAsAJudge, ModelArmor |
