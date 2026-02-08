@@ -42,6 +42,15 @@ git clone https://github.com/miticojo/adk-skill.git
 cp -r adk-skill/adk-skill ~/.claude/skills/
 ```
 
+### Google Antigravity
+
+```bash
+# Copy to Antigravity global skills directory
+cp -r adk-skill/adk-skill ~/.gemini/antigravity/skills/
+```
+
+Or for workspace-only scope, copy to `<your-project>/.agent/skills/`. See the [Antigravity skills docs](https://antigravity.google/docs/skills) for details.
+
 ### Gemini CLI
 
 ```bash
