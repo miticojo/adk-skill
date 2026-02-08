@@ -1,0 +1,8 @@
+# Internal build artifacts
+doc/
+adk-doc-full.txt
+
+# Claude Code project memory
+.claude/
+
+CLAUDE.md
