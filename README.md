@@ -8,13 +8,14 @@ This skill gives your coding agent deep knowledge of ADK architecture, patterns,
 
 ```
 adk-skill/
-├── SKILL.md                          # Core instructions (497 lines)
+├── SKILL.md                          # Core instructions (495 lines)
 └── references/
     ├── a2a-protocol.md               # A2A protocol: expose, consume, agent cards
     ├── design-patterns.md            # Agent design patterns & best practices
     ├── tools-reference.md            # FunctionTool, MCP, Toolbox, RAG patterns
     ├── advanced-patterns.md          # Multi-agent, deployment, safety, config
     ├── evaluation.md                 # Eval data formats, 8 metrics, user simulation
+    ├── troubleshooting.md            # Common errors, debugging, performance tips
     └── multi-language.md             # Java, Go, TypeScript patterns
 ```
 
@@ -26,6 +27,7 @@ adk-skill/
 - **tools-reference.md** -- FunctionTool, ToolboxToolset, MCP connections, RAG retrieval, long-running tools, best practices
 - **advanced-patterns.md** -- hierarchical workflows, parallel writers with judge, agent transfer, rate limiting, guardrails, Cloud Run/Vertex AI deployment, FastAPI, configuration, anti-patterns
 - **evaluation.md** -- eval data formats (EvalSet/EvalCase), all 8 built-in metrics, tool trajectory matching, rubric-based evaluation, user simulation, pytest integration, CLI and web UI, TypeScript support
+- **troubleshooting.md** -- setup errors (missing `__init__.py`, `root_agent`, API keys), runtime issues (empty responses, state sharing, LoopAgent), A2A errors, MCP integration, testing tips, performance
 - **multi-language.md** -- Java (builder pattern, @Schema annotations, Maven), Go (struct config, launcher), TypeScript (Zod schemas, npm), cross-language tool comparison
 
 The skill also references the official [ADK documentation](https://google.github.io/adk-docs/llms.txt) and [ADK samples](https://github.com/google/adk-samples) for always up-to-date API details.

@@ -302,7 +302,21 @@ async def chat(message: str, session_id: str):
 
 ---
 
-## Configuration Patterns
+## Project Configuration
+
+### pyproject.toml
+
+```toml
+[project]
+name = "my-agent"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["google-adk"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+```
 
 ### Environment-Based Config
 

@@ -1,10 +1,12 @@
 ---
 name: adk-skill
-description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, or TypeScript. Use when creating AI agents with ADK, designing multi-agent architectures, implementing agent tools, configuring agent callbacks, managing agent state, orchestrating sequential/parallel/loop agent workflows, or when the user mentions ADK, google-adk, google agent development kit, agentic AI with Gemini, or agent orchestration with Google tools. Also use when setting up ADK projects, writing agent tests, deploying agents, or integrating MCP tools with ADK."
+description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, or TypeScript. Use when user says 'build an agent with ADK', 'create a Gemini agent', 'multi-agent pipeline', 'agent orchestration with Google', or mentions ADK, google-adk, google agent development kit, sequential/parallel/loop agents, agent tools, callbacks, state management, agent testing, or agent deployment with Gemini. Do NOT use for LangChain, CrewAI, AutoGen, or non-ADK agent frameworks."
 license: MIT
+compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.22+, Node 18+). Needs google-adk package. Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var."
 metadata:
   author: community
-  version: "1.0"
+  version: "1.1"
+  mcp-server: adk-docs
 ---
 
 # Google Agent Development Kit (ADK) Guide
@@ -12,6 +14,15 @@ metadata:
 ## Overview
 
 ADK is Google's open-source framework for building AI agents powered by Gemini models. It supports single-agent and multi-agent architectures with built-in tool integration, state management, callbacks, guardrails, and deployment options.
+
+## Critical Rules
+
+1. **Every agent package MUST have `__init__.py`** that imports the agent module: `from . import agent`
+2. **Entry point MUST be `root_agent`** -- a module-level variable in `agent.py` (Python). Not `agent`, not `my_agent`.
+3. **Set `GOOGLE_API_KEY` in `.env`** or configure Vertex AI credentials before running.
+4. **Always set `max_iterations` on `LoopAgent`** to prevent unbounded execution.
+5. **One agent = one responsibility.** Split agents with 5+ tools into specialists.
+6. **Use `output_key` + `output_schema`** for reliable data flow between agents -- not free text.
 
 ## Documentation & Resources
 
@@ -94,17 +105,7 @@ root_agent = Agent(
 
 ### pyproject.toml
 
-```toml
-[project]
-name = "my-agent"
-version = "0.1.0"
-requires-python = ">=3.10"
-dependencies = ["google-adk"]
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-```
+Minimal config: `requires-python = ">=3.10"`, `dependencies = ["google-adk"]`, build-backend `setuptools`. For full example and environment config, see [references/advanced-patterns.md](references/advanced-patterns.md).
 
 ---
 
@@ -435,10 +436,7 @@ ADK provides built-in evaluation for tool correctness, response quality, and saf
 
 ## Model Selection
 
-- `gemini-2.5-flash` - Default, fast, cost-effective (temperature 0.1-0.7)
-- `gemini-2.5-pro` - Complex reasoning, code review (temperature 0.1-0.4)
-
-Configure per-agent via `generate_content_config=types.GenerateContentConfig(temperature=0.2)`.
+Use `gemini-2.5-flash` for most agents (fast, cost-effective). Use `gemini-2.5-pro` for complex reasoning. Configure via `generate_content_config=types.GenerateContentConfig(temperature=0.2)`.
 
 ---
 
@@ -455,18 +453,18 @@ Configure per-agent via `generate_content_config=types.GenerateContentConfig(tem
 | Resource tiering | Cost optimization under constraints | Different `model` per agent (Pro vs Flash) |
 
 **Key design rules:**
-- One agent = one responsibility. Split agents with 5+ tools into specialists.
-- Use `output_key` for structured data flow between agents via state -- not free text.
-- Always set `max_iterations` on `LoopAgent` to prevent unbounded execution.
-- Separate generation from evaluation -- use a different agent to critique output (avoids self-review bias).
-- Write sub-agent `description` fields carefully -- they drive Auto-Flow routing decisions.
-- Use structured output (JSON/Pydantic) between pipeline stages for reliable data passing.
-- Embed reasoning steps in agent instructions: "1. Analyze → 2. Plan → 3. Execute → 4. Verify".
-- Always include a fallback route for unclear inputs -- ambiguous requests must not be silently misrouted.
+- Split agents with 5+ tools into focused specialists. One agent = one responsibility.
+- Pass data between agents via `output_key` + `output_schema` (Pydantic) -- never rely on free text.
+- Set `max_iterations` on every `LoopAgent`. No exceptions.
+- Separate generation from evaluation -- use a different agent to critique (avoids self-review bias).
+- Write precise sub-agent `description` fields -- they drive Auto-Flow routing decisions.
+- Embed reasoning steps in instructions: "1. Analyze 2. Plan 3. Execute 4. Verify".
+- Include a fallback route for unclear inputs -- ambiguous requests must not be silently misrouted.
 
 For hierarchical workflows, agent transfer, and deployment patterns, see [references/advanced-patterns.md](references/advanced-patterns.md).
 For comprehensive design patterns (chaining, reflection, planning, memory, error handling, HITL, guardrails, RAG, resource optimization, reasoning, evaluation, prompting), see [references/design-patterns.md](references/design-patterns.md).
 For A2A (Agent-to-Agent) protocol patterns -- exposing agents as A2A servers, consuming remote agents with `RemoteA2aAgent`, agent cards, and cross-service communication -- see [references/a2a-protocol.md](references/a2a-protocol.md).
+For common errors, debugging, and performance tips, see [references/troubleshooting.md](references/troubleshooting.md).
 
 ---
 
