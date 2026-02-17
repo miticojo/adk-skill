@@ -34,26 +34,32 @@ The skill also references the official [ADK documentation](https://google.github
 
 ## Install
 
+### Quick Install (recommended)
+
+Install across all your agents with a single command using the [Skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add miticojo/adk-skill
+```
+
+The CLI auto-detects installed agents (Claude Code, Cursor, Windsurf, OpenCode, etc.) and installs the skill to each one.
+
 ### Claude Code
 
 ```bash
 claude mcp add-skill https://github.com/miticojo/adk-skill/tree/main/adk-skill
 ```
 
-Or manually copy the folder:
+Or manually:
 
 ```bash
-# Clone the repo
 git clone https://github.com/miticojo/adk-skill.git
-
-# Copy the skill to your Claude Code skills directory
 cp -r adk-skill/adk-skill ~/.claude/skills/
 ```
 
 ### Google Antigravity
 
 ```bash
-# Copy to Antigravity global skills directory
 cp -r adk-skill/adk-skill ~/.gemini/antigravity/skills/
 ```
 
@@ -62,21 +68,18 @@ Or for workspace-only scope, copy to `<your-project>/.agent/skills/`. See the [A
 ### Gemini CLI
 
 ```bash
-# Copy to Gemini CLI skills directory
 cp -r adk-skill/adk-skill ~/.gemini/skills/
 ```
 
 ### OpenCode
 
 ```bash
-# Copy to OpenCode skills directory
 cp -r adk-skill/adk-skill ~/.config/opencode/skills/
 ```
 
 ### OpenAI Codex
 
 ```bash
-# Copy to Codex skills directory
 cp -r adk-skill/adk-skill ~/.codex/skills/
 ```
 
