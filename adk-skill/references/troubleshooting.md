@@ -175,10 +175,74 @@ def test_a2a():
 
 ---
 
+## Context & Session Errors
+
+### Context Growing Too Large / Slow Responses
+
+**Symptom:** Agent responses get slower over long conversations, or context exceeds model limit.
+
+**Fix:** Enable context compaction via `App`:
+```python
+from google.adk.apps.app import App, EventsCompactionConfig
+
+app = App(
+    name='my-agent',
+    root_agent=root_agent,
+    events_compaction_config=EventsCompactionConfig(
+        compaction_interval=3,  # Summarize every 3 invocations
+        overlap_size=1,
+    ),
+)
+```
+
+### Session Rewind Doesn't Restore Everything
+
+**Symptom:** After `runner.rewind_async()`, some state is still changed.
+
+**Cause:** Rewind only restores session-level state/artifacts. `app:` and `user:` scoped state and external side effects are NOT restored.
+
+### Agent Doesn't Resume After Crash
+
+**Symptom:** Workflow restarts from beginning instead of resuming.
+
+**Fix:** Enable resumability:
+```python
+from google.adk.apps.app import App, ResumabilityConfig
+
+app = App(
+    name='my-agent',
+    root_agent=root_agent,
+    resumability_config=ResumabilityConfig(is_resumable=True),
+)
+```
+
+Resume via API: `runner.run_async(user_id=..., session_id=..., invocation_id=...)`
+
+### Rate Limiting (Error 429)
+
+**Symptom:** `RESOURCE_EXHAUSTED` errors from Gemini API.
+
+**Fix:** Add retry options:
+```python
+root_agent = Agent(
+    model='gemini-2.5-flash',
+    generate_content_config=types.GenerateContentConfig(
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3),
+        ),
+    ),
+)
+```
+
+---
+
 ## Performance Tips
 
-- Use `gemini-2.5-flash` for most agents, reserve `gemini-2.5-pro` for complex reasoning
+- Use `gemini-2.5-flash` for most agents, reserve `gemini-2.5-pro` for complex reasoning. Gemini 3 models (`gemini-3-flash`, `gemini-3-pro`) also available
 - Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
 - Split agents with 5+ tools into focused specialists
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing
 - Keep agent hierarchies max 3-4 levels deep
+- Enable context compaction (`EventsCompactionConfig`) for long conversations
+- Use `Interactions API` (`use_interactions_api=True`) for long stateful conversations
+- Use Plugins for cross-cutting concerns (logging, metrics) instead of per-agent callbacks

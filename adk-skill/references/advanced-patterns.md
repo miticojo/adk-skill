@@ -358,6 +358,239 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 ---
 
+## App Object (Runtime Configuration)
+
+The `App` class wraps your `root_agent` with runtime configuration for context compaction, resumability, and plugins:
+
+```python
+from google.adk.apps.app import App, EventsCompactionConfig
+from google.adk.apps.app import ResumabilityConfig
+
+app = App(
+    name='my-agent',
+    root_agent=root_agent,
+    # Context compaction: summarize older events to keep context small
+    events_compaction_config=EventsCompactionConfig(
+        compaction_interval=3,  # Compact every 3 invocations
+        overlap_size=1,         # Keep 1 prior event in new window
+    ),
+    # Resumability: recover from interruptions
+    resumability_config=ResumabilityConfig(
+        is_resumable=True,
+    ),
+)
+```
+
+### Custom Summarizer for Compaction
+
+```python
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
+from google.adk.models import Gemini
+
+summarizer = LlmEventSummarizer(llm=Gemini(model="gemini-2.5-flash"))
+app = App(
+    name='my-agent',
+    root_agent=root_agent,
+    events_compaction_config=EventsCompactionConfig(
+        compaction_interval=3,
+        overlap_size=1,
+        summarizer=summarizer,
+    ),
+)
+```
+
+### How Resumability Works
+
+When enabled, ADK tracks workflow execution via Events. On interruption and restart:
+- **SequentialAgent**: Resumes from `current_sub_agent` state
+- **LoopAgent**: Continues from saved `current_sub_agent` + `times_looped`
+- **ParallelAgent**: Runs only sub-agents that haven't completed
+
+Tools that completed successfully are NOT re-run. Tools run at-least-once, so idempotency matters.
+
+---
+
+## Session Rewind
+
+Undo interactions and restore session state to a previous point (v1.17.0+):
+
+```python
+runner = InMemoryRunner(agent=root_agent, app_name="test")
+session = await runner.session_service.create_session(
+    app_name="test", user_id="user",
+)
+
+# Run some interactions...
+events = await call_agent(runner, "user", session.id, "set color to blue")
+rewind_id = events[0].invocation_id
+
+# Rewind: undo "set color to blue" and all interactions after it
+await runner.rewind_async(
+    user_id="user",
+    session_id=session.id,
+    rewind_before_invocation_id=rewind_id,
+)
+```
+
+**Limitations:**
+- Only session-level state/artifacts are restored (not `app:` or `user:` scoped)
+- External side effects (API calls, emails) are NOT undone
+- Do not rewind active sessions or manipulate artifacts during rewind
+
+---
+
+## Plugins (Global Lifecycle Hooks)
+
+Plugins extend `BasePlugin` and apply globally across all agents, tools, and LLM calls in a `Runner`:
+
+```python
+from google.adk.plugins.base_plugin import BasePlugin
+
+class MetricsPlugin(BasePlugin):
+    def __init__(self):
+        super().__init__(name="metrics")
+        self.llm_calls = 0
+
+    async def before_model_callback(self, *, callback_context, llm_request):
+        self.llm_calls += 1
+        return None  # None = proceed, return value = short-circuit
+
+    async def on_model_error_callback(self, *, callback_context, llm_request, error):
+        log.error(f"Model failed: {error}")
+        return None  # None = re-raise, return LlmResponse = suppress error
+
+# Register on Runner
+runner = InMemoryRunner(
+    agent=root_agent,
+    app_name="app",
+    plugins=[MetricsPlugin()],
+)
+```
+
+### Plugin vs Agent Callbacks
+
+| | Plugins | Agent Callbacks |
+|---|---------|----------------|
+| Scope | Global (all agents/tools/LLMs) | Local (single agent) |
+| Priority | Run BEFORE agent callbacks | Run AFTER plugin callbacks |
+| Use case | Logging, policy, monitoring, caching | Agent-specific logic |
+
+### Available Callback Hooks
+
+| Hook | When | Can Short-Circuit |
+|------|------|-------------------|
+| `on_user_message_callback` | User sends message | Yes (replace message) |
+| `before_run_callback` | Runner starts | Yes |
+| `before_agent_callback` / `after_agent_callback` | Agent lifecycle | Yes / No |
+| `before_model_callback` / `after_model_callback` | LLM call | Yes (cached response) / Yes |
+| `on_model_error_callback` | LLM error | Yes (fallback response) |
+| `before_tool_callback` / `after_tool_callback` | Tool execution | Yes / Yes |
+| `on_tool_error_callback` | Tool error | Yes (fallback dict) |
+| `on_event_callback` | Event yielded | Yes (replace event) |
+| `after_run_callback` | Runner finishes | No (teardown only) |
+
+### Prebuilt Plugins
+
+- **Reflect and Retry**: Auto-retries failed tools
+- **BigQuery Analytics**: Agent logging to BigQuery
+- **Context Filter**: Reduces context size
+- **Global Instruction**: App-level instructions
+- **Save Files as Artifacts**: Saves user-uploaded files
+- **Logging**: Logs at each callback point
+
+---
+
+## AG-UI Integration (Rich User Interfaces)
+
+[AG-UI](https://docs.ag-ui.com/) is an open protocol for building rich UIs on top of ADK agents. It handles streaming events, shared state, and bidirectional communication.
+
+### Quick Start with CopilotKit
+
+```bash
+npx copilotkit@latest create -f adk
+export GOOGLE_API_KEY="your-key"
+npm install && npm run dev
+```
+
+This starts a web UI at `http://localhost:3000` and ADK backend at `http://localhost:8000`.
+
+### Key AG-UI Features
+
+| Feature | Description |
+|---------|-------------|
+| Chat | Streaming messages between users and agents |
+| Generative UI | Render tool calls as custom React components |
+| Shared State | Sync agent state with UI bidirectionally |
+| Human-in-the-Loop | User confirmations for critical actions |
+| Frontend Actions | UI-triggered agent actions |
+
+```tsx
+// Shared state example (CopilotKit + ADK)
+const { state, setState } = useCoAgent({
+  name: "my_agent",
+  initialState: { items: [] },
+});
+```
+
+---
+
+## Interactions API (Stateful Gemini Conversations)
+
+For long conversations, use the Interactions API to chain requests by ID instead of sending full history (v1.21.0+):
+
+```python
+from google.adk.models.google_llm import Gemini
+
+root_agent = Agent(
+    model=Gemini(
+        model="gemini-2.5-flash",
+        use_interactions_api=True,
+    ),
+    name="stateful_agent",
+    tools=[get_weather],
+)
+```
+
+**Limitation:** Cannot mix custom function tools with built-in tools (like Google Search). Workaround:
+```python
+from google.adk.tools.google_search_tool import GoogleSearchTool
+# Convert built-in to function tool
+tools=[GoogleSearchTool(bypass_multi_tools_limit=True), custom_tool]
+```
+
+---
+
+## Multi-Model Support
+
+ADK supports non-Gemini models via adapters:
+
+| Provider | Model Config | Notes |
+|----------|-------------|-------|
+| Gemini (default) | `model="gemini-2.5-flash"` | Full feature support |
+| Claude (Anthropic) | `model="claude-sonnet-4-20250514"` | Via google-genai |
+| Ollama | `model="ollama/llama3"` | Local models |
+| LiteLLM | `model="litellm/gpt-4o"` | Multi-provider proxy |
+| vLLM | Custom adapter | Self-hosted models |
+
+```python
+# Claude example
+agent = Agent(
+    model="claude-sonnet-4-20250514",
+    name="claude_agent",
+    instruction="...",
+)
+
+# Ollama example
+from google.adk.models.ollama_llm import OllamaLlm
+agent = Agent(
+    model=OllamaLlm(model="gemma3"),
+    name="local_agent",
+    instruction="...",
+)
+```
+
+---
+
 ## Evaluation
 
 For evaluation patterns, test data formats, metrics, and CI/CD integration, see [evaluation.md](evaluation.md).

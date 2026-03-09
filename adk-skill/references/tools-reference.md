@@ -115,6 +115,125 @@ agent = Agent(
 )
 ```
 
+## APIRegistryToolset (Cloud API Registry)
+
+Connect to managed APIs via Google Cloud API Registry (v1.20.0+):
+
+```python
+from google.adk.tools.api_registry_toolset import APIRegistryToolset
+
+toolset = APIRegistryToolset(
+    project="my-project",
+    location="us-central1",
+    api_id="my-api",
+)
+
+agent = Agent(
+    name="api_agent",
+    tools=[toolset],
+)
+```
+
+## Cloud Pub/Sub Tool
+
+Publish messages to Google Cloud Pub/Sub topics (v1.22.0+):
+
+```python
+from google.adk.tools.pubsub_tool import PubSubTool
+
+pubsub = PubSubTool(
+    project="my-project",
+    topic="my-topic",
+)
+
+agent = Agent(
+    name="event_agent",
+    tools=[pubsub],
+)
+```
+
+## OpenAPI Tools
+
+Generate tools from an OpenAPI spec (REST APIs):
+
+```python
+from google.adk.tools.openapi_tool import OpenAPIToolset
+
+toolset = OpenAPIToolset(
+    spec_str=open("openapi.yaml").read(),
+    # Optional: auth header
+    header_provider=lambda: {"Authorization": f"Bearer {get_token()}"},
+)
+
+agent = Agent(
+    name="rest_agent",
+    tools=[toolset],
+)
+```
+
+## SkillToolset (Agent Skills)
+
+Load Agent Skills (per [agentskills.io spec](https://agentskills.io/specification)) into your agent at runtime (v1.25.0+, experimental). Skills are modular instruction packages with three levels: L1 (metadata for discovery), L2 (instructions loaded on trigger), L3 (references/assets/scripts loaded on demand).
+
+### Load from Directory
+
+```python
+import pathlib
+from google.adk import Agent
+from google.adk.skills import load_skill_from_dir
+from google.adk.tools import skill_toolset
+
+weather_skill = load_skill_from_dir(
+    pathlib.Path(__file__).parent / "skills" / "weather_skill"
+)
+
+root_agent = Agent(
+    model="gemini-2.5-flash",
+    name="skill_user_agent",
+    instruction="You are a helpful assistant that can leverage skills.",
+    tools=[
+        skill_toolset.SkillToolset(skills=[weather_skill]),
+    ],
+)
+```
+
+### Directory Structure
+
+```
+my_agent/
+├── agent.py
+├── skills/
+│   └── weather_skill/          # Follows Agent Skill spec
+│       ├── SKILL.md            # Required: frontmatter + instructions
+│       ├── references/         # Optional: extended guidance
+│       │   └── api-details.md
+│       └── assets/             # Optional: templates, data
+│           └── schema.json
+```
+
+### Define Inline (in Code)
+
+```python
+from google.adk.skills import models
+
+greeting_skill = models.Skill(
+    frontmatter=models.Frontmatter(
+        name="greeting-skill",
+        description="A friendly greeting skill.",
+    ),
+    instructions="Greet the user warmly. Refer to references for style.",
+    resources=models.Resources(
+        references={
+            "style.md": "Always greet with enthusiasm and use the user's name.",
+        },
+    ),
+)
+```
+
+**Known limitation:** Script execution (`scripts/` directory) is not yet supported.
+
+---
+
 ## Long-Running Tools
 
 For tools with async operations that require polling:

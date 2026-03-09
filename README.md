@@ -8,26 +8,26 @@ This skill gives your coding agent deep knowledge of ADK architecture, patterns,
 
 ```
 adk-skill/
-├── SKILL.md                          # Core instructions (495 lines)
+├── SKILL.md                          # Core instructions (500 lines)
 └── references/
     ├── a2a-protocol.md               # A2A protocol: expose, consume, agent cards
     ├── design-patterns.md            # Agent design patterns & best practices
-    ├── tools-reference.md            # FunctionTool, MCP, Toolbox, RAG patterns
-    ├── advanced-patterns.md          # Multi-agent, deployment, safety, config
+    ├── tools-reference.md            # FunctionTool, MCP, Toolbox, RAG, SkillToolset, API Registry
+    ├── advanced-patterns.md          # Multi-agent, App config, plugins, AG-UI, streaming, multi-model
     ├── evaluation.md                 # Eval data formats, 8 metrics, user simulation
     ├── troubleshooting.md            # Common errors, debugging, performance tips
     └── multi-language.md             # Java, Go, TypeScript patterns
 ```
 
-**SKILL.md** covers project structure, all 4 agent types (LlmAgent, SequentialAgent, ParallelAgent, LoopAgent), function tools, AgentTool, MCP integration, A2A remote agents, callbacks, state management, structured output, testing with InMemoryRunner, design patterns with key rules, decision guides, and links to external documentation.
+**SKILL.md** covers project structure, all 4 agent types (LlmAgent, SequentialAgent, ParallelAgent, LoopAgent), function tools, AgentTool, MCP integration, A2A remote agents, callbacks, state management, structured output, testing with InMemoryRunner, App runtime config (context compaction, resumability), plugins, streaming/Live API, SkillToolset, multi-model support (Gemini 3, Claude, Ollama, LiteLLM), design patterns with key rules, decision guides, and links to external documentation.
 
 **Reference files** provide advanced patterns loaded on demand:
 - **a2a-protocol.md** -- A2A (Agent-to-Agent) protocol: exposing agents via `to_a2a()` and `adk api_server`, consuming with `RemoteA2aAgent`, agent cards, Go patterns, metadata propagation, testing, troubleshooting (validated with integration tests)
 - **design-patterns.md** -- 15 agent design patterns (sequential pipeline, fan-out/fan-in, reflection, routing, planning, error handling, HITL, guardrails, resource optimization, reasoning, context engineering, prompting), universal anti-patterns table, multi-agent collaboration models, state management rules, memory architecture
-- **tools-reference.md** -- FunctionTool, ToolboxToolset, MCP connections, RAG retrieval, long-running tools, best practices
-- **advanced-patterns.md** -- hierarchical workflows, parallel writers with judge, agent transfer, rate limiting, guardrails, Cloud Run/Vertex AI deployment, FastAPI, configuration, anti-patterns
+- **tools-reference.md** -- FunctionTool, ToolboxToolset, MCP connections, RAG retrieval, SkillToolset (Agent Skills loading), APIRegistryToolset, Cloud Pub/Sub, OpenAPI tools, long-running tools, best practices
+- **advanced-patterns.md** -- App object (context compaction, resumability), plugins (BasePlugin, global lifecycle hooks), session rewind, AG-UI integration (CopilotKit), Interactions API, multi-model support (Claude, Ollama, LiteLLM, vLLM), hierarchical workflows, agent transfer, deployment, anti-patterns
 - **evaluation.md** -- eval data formats (EvalSet/EvalCase), all 8 built-in metrics, tool trajectory matching, rubric-based evaluation, user simulation, pytest integration, CLI and web UI, TypeScript support
-- **troubleshooting.md** -- setup errors (missing `__init__.py`, `root_agent`, API keys), runtime issues (empty responses, state sharing, LoopAgent), A2A errors, MCP integration, testing tips, performance
+- **troubleshooting.md** -- setup errors (missing `__init__.py`, `root_agent`, API keys), runtime issues (empty responses, state sharing, LoopAgent), context/session errors (compaction, rewind, resume, rate limiting), A2A errors, MCP integration, testing tips, performance
 - **multi-language.md** -- Java (builder pattern, @Schema annotations, Maven), Go (struct config, launcher), TypeScript (Zod schemas, npm), cross-language tool comparison
 
 The skill also references the official [ADK documentation](https://google.github.io/adk-docs/llms.txt) and [ADK samples](https://github.com/google/adk-samples) for always up-to-date API details.
@@ -101,7 +101,8 @@ The skill activates when you mention:
 - Agent **tools**, **callbacks**, **state management**
 - **Deploying agents**, **writing agent tests**
 - **A2A protocol**, **remote agents**, **agent-to-agent** communication
-- Integrating **MCP tools** with ADK
+- Integrating **MCP tools** or **Agent Skills** with ADK
+- **Streaming**, **Live API**, **AG-UI**, **plugins**
 
 ## Topics Covered
 
@@ -110,17 +111,20 @@ The skill activates when you mention:
 | Languages | Python, Java, Go, TypeScript with language-specific patterns |
 | Project Setup | Directory structure, `__init__.py`, `root_agent`, `pyproject.toml` |
 | Agent Types | LlmAgent, SequentialAgent, ParallelAgent, LoopAgent, composition |
-| Tools | Function tools, ToolContext, AgentTool, google_search, MCPToolset, RemoteA2aAgent |
-| Callbacks | before/after agent, tool, and model hooks |
-| State | Session state, scopes (`app:`, `user:`, `temp:`), data flow between agents |
+| Tools | Function tools, ToolContext, AgentTool, google_search, MCPToolset, SkillToolset, RemoteA2aAgent |
+| Callbacks & Plugins | Agent/tool/model lifecycle hooks; `BasePlugin` for global cross-cutting concerns |
+| State & Sessions | Session state, scopes (`app:`, `user:`, `temp:`), context compaction, session rewind, resumability |
 | Output | Pydantic `output_schema` + `output_key` for structured data |
 | Testing | `InMemoryRunner` with pytest |
 | Evaluation | 8 metrics, `adk eval` CLI, pytest, web UI, user simulation |
 | Design Patterns | Sequential pipeline, fan-out/fan-in, reflection, routing, planning, error handling, HITL, guardrails, resource tiering, reasoning, context engineering, 12 anti-patterns |
 | Patterns | Pipeline+validation, coordinator+specialists, parallel research, guardrails |
 | A2A Protocol | Expose via `to_a2a()`, consume via `RemoteA2aAgent`, agent cards, Python + Go |
+| Models | Gemini 2.5/3, Claude, Ollama, LiteLLM, vLLM; Interactions API |
+| Streaming | Gemini Live API, `LiveRequestQueue`, bidirectional audio/video |
+| UI Integration | AG-UI protocol, CopilotKit, shared state, generative UI |
 | Deployment | `adk run/web`, Cloud Run, Vertex AI, FastAPI |
-| Safety | before_model guardrails, LlmAsAJudge, ModelArmor |
+| Safety | before_model guardrails, Plugins, LlmAsAJudge, ModelArmor |
 | External Docs | Links to official ADK docs and Google sample agents |
 
 ## Effectiveness

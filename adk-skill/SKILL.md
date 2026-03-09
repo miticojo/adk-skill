@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.22+, Node 18+). Needs google-adk package. Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var."
 metadata:
   author: community
-  version: "1.1"
+  version: "1.3"
   mcp-server: adk-docs
 ---
 
@@ -55,6 +55,13 @@ This guide shows Python examples. For Java, Go, and TypeScript patterns, see [re
 | Structured output | Pydantic model via `output_schema` + `output_key` |
 | State management | `callback_context.state` and `tool_context.state` |
 | MCP integration | `MCPToolset` with connection params |
+| Runtime config | `App` object with compaction, resumability, plugins |
+| Plugins (global hooks) | `BasePlugin` registered on `Runner` or `App` |
+| Context compaction | `EventsCompactionConfig` on `App` for long conversations |
+| Session rewind | `runner.rewind_async()` to undo interactions |
+| Streaming (Live API) | `LiveRequestQueue` for bidirectional audio/video |
+| Multi-model | Claude, Ollama, LiteLLM, vLLM via model adapters |
+| Agent Skills | `SkillToolset` to load Skills from files or code |
 | Testing | `pytest` with `InMemoryRunner` |
 | Evaluation | EvalSet with `.test.json`, `adk eval` CLI, pytest |
 
@@ -436,7 +443,7 @@ ADK provides built-in evaluation for tool correctness, response quality, and saf
 
 ## Model Selection
 
-Use `gemini-2.5-flash` for most agents (fast, cost-effective). Use `gemini-2.5-pro` for complex reasoning. Configure via `generate_content_config=types.GenerateContentConfig(temperature=0.2)`.
+Use `gemini-2.5-flash` for most agents (fast, cost-effective). Use `gemini-2.5-pro` for complex reasoning. Gemini 3 models (`gemini-3-flash`, `gemini-3-pro`) also supported. Non-Gemini models work too: Claude, Ollama, LiteLLM, vLLM. Configure via `generate_content_config=types.GenerateContentConfig(temperature=0.2)`.
 
 ---
 
@@ -461,10 +468,7 @@ Use `gemini-2.5-flash` for most agents (fast, cost-effective). Use `gemini-2.5-p
 - Embed reasoning steps in instructions: "1. Analyze 2. Plan 3. Execute 4. Verify".
 - Include a fallback route for unclear inputs -- ambiguous requests must not be silently misrouted.
 
-For hierarchical workflows, agent transfer, and deployment patterns, see [references/advanced-patterns.md](references/advanced-patterns.md).
-For comprehensive design patterns (chaining, reflection, planning, memory, error handling, HITL, guardrails, RAG, resource optimization, reasoning, evaluation, prompting), see [references/design-patterns.md](references/design-patterns.md).
-For A2A (Agent-to-Agent) protocol patterns -- exposing agents as A2A servers, consuming remote agents with `RemoteA2aAgent`, agent cards, and cross-service communication -- see [references/a2a-protocol.md](references/a2a-protocol.md).
-For common errors, debugging, and performance tips, see [references/troubleshooting.md](references/troubleshooting.md).
+See also: [advanced-patterns.md](references/advanced-patterns.md) (App config, plugins, deployment, AG-UI, session rewind) | [design-patterns.md](references/design-patterns.md) (chaining, reflection, planning, guardrails, memory, HITL) | [a2a-protocol.md](references/a2a-protocol.md) (A2A server/client, agent cards) | [troubleshooting.md](references/troubleshooting.md) (debugging, performance).
 
 ---
 
@@ -492,4 +496,5 @@ Remote agent over network? → RemoteA2aAgent (A2A protocol)
 External MCP server? → MCPToolset
 Database access? → ToolboxToolset
 Web search? → google_search (built-in)
+Modular skill package? → SkillToolset
 ```

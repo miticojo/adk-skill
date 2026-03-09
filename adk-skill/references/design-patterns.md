@@ -17,6 +17,9 @@ Best practices for designing, building, and operating ADK agents. Patterns are o
 | Agent must recall across sessions | Long-term memory | `MemoryService` (search + store) |
 | Humans must approve critical actions | Human-in-the-loop | Escalation tools + callback gates |
 | Complex reasoning required | Structured reasoning | CoT/ReAct directives in agent instructions |
+| Cross-cutting concerns (logging, policy) | Plugins | `BasePlugin` registered on `Runner` |
+| Long conversations need optimization | Context compaction | `EventsCompactionConfig` on `App` |
+| Workflow must survive crashes | Resumability | `ResumabilityConfig` on `App` |
 
 ### Fixed Workflow vs Dynamic Planning
 
@@ -260,6 +263,8 @@ Design the complete informational environment for the model before token generat
 - Summarize older conversation segments to manage context window
 - Use `temp:` prefix state keys for data needed only in current turn
 - Inject dynamic context via `before_model_callback`, not by bloating the static instruction
+- Enable context compaction (`EventsCompactionConfig` on `App`) for long-running conversations
+- Use the Interactions API (`use_interactions_api=True`) for stateful Gemini conversations to avoid resending full history
 
 ### Reasoning Directives
 
@@ -405,4 +410,6 @@ Embed structured reasoning in agent instructions for complex tasks.
 - Use `InMemorySessionService` / `InMemoryMemoryService` for dev/test
 - Use `DatabaseSessionService` or `VertexAiSessionService` for production
 - Use `VertexAiRagMemoryService` for persistent, scalable semantic memory
-- Manage context window actively: summarize older segments, prune irrelevant history
+- Manage context window actively: use `EventsCompactionConfig` to auto-summarize, or prune manually
+- Use session rewind (`runner.rewind_async()`) to roll back to known-good states
+- Enable resumability (`ResumabilityConfig`) for fault-tolerant long-running workflows
