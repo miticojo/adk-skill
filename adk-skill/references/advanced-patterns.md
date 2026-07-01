@@ -593,7 +593,37 @@ agent = Agent(
 
 ## Evaluation
 
-For evaluation patterns, test data formats, metrics, and CI/CD integration, see [evaluation.md](evaluation.md).
+For evaluation patterns, test data formats, metrics, and CI/CD integration, see [evaluation.md](evaluation.md). ADK 2.2+ adds `RubricBasedMultiTurnTrajectoryEvaluator` for multi-turn trajectory scoring.
+
+## Agent Config (YAML-based Agents)
+
+Define agents without writing Python code using YAML:
+
+```bash
+adk create --type=config my_agent
+```
+
+This generates `my_agent/root_agent.yaml`:
+
+```yaml
+name: assistant_agent
+model: gemini-3-flash-preview
+description: A helper agent that can answer users' questions.
+instruction: You are an agent to help answer users' various questions.
+tools:
+  - name: google_search
+```
+
+Run with: `adk web my_agent` or `adk run my_agent`.
+
+Load programmatically:
+
+```python
+from google.adk.agents import config_agent_utils
+agent = config_agent_utils.from_config("my_agent/root_agent.yaml")
+```
+
+The [Visual Builder](https://adk.dev/visual-builder/) in `adk web` provides a drag-and-drop UI that generates Agent Config YAML files.
 
 ---
 
@@ -606,6 +636,8 @@ For evaluation patterns, test data formats, metrics, and CI/CD integration, see 
 5. **Don't ignore structured output** - Use `output_schema` for data pipelines
 6. **Don't nest references too deep** - Keep agent hierarchies max 3-4 levels
 7. **Don't forget `root_agent`** - Must be defined at module level
-8. **Don't use Agent when SequentialAgent is needed** - If steps must run in order, use SequentialAgent
-9. **Don't put all prompts inline** - Extract to `prompts.py` for maintainability
-10. **Don't skip testing** - Use `InMemoryRunner` for unit tests
+8. **Don't override `_run_async_impl()` in ADK 2.0** - Use callbacks instead
+9. **Don't append events directly to session** - Yield events from nodes
+10. **Don't catch `BaseException` in tools** - Breaks HITL and auto-retries
+11. **Don't put all prompts inline** - Extract to `prompts.py` for maintainability
+12. **Don't skip testing** - Use `InMemoryRunner` for unit tests

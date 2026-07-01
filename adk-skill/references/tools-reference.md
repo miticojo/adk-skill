@@ -258,9 +258,10 @@ def check_job_status(job_id: str) -> dict:
 1. **Clear docstrings**: The docstring becomes the tool description for the LLM
 2. **Type hints**: All parameters must have type hints
 3. **Return useful data**: Return structured dicts, not raw strings
-4. **Handle errors gracefully**: Return error info, don't raise exceptions
+4. **Handle errors gracefully**: Return error info, don't raise exceptions (but allow standard exceptions to propagate so ADK 2.0 auto-retries work)
 5. **Keep tools focused**: One tool = one action
 6. **Use ToolContext for state**: Don't use global variables
+7. **Never catch `BaseException`**: It traps `NodeInterruptedError`, breaking HITL pause/resume
 
 ```python
 # Good: focused, typed, documented
@@ -283,3 +284,61 @@ def get_user_profile(user_id: str, tool_context: ToolContext) -> dict:
 def get_data(id):
     return str(db.query(id))
 ```
+
+## Tool Authentication
+
+Configure authentication for custom tools (API keys, OAuth):
+
+```python
+from google.adk.tools import FunctionTool
+from google.adk.auth import AuthConfig, APIKeyAuth
+
+def get_customer_data(customer_id: str) -> dict:
+    """Fetch customer data from CRM."""
+    ...
+
+# Tool with API key auth
+tool = FunctionTool(
+    func=get_customer_data,
+    auth_config=AuthConfig(
+        auth_scheme=APIKeyAuth(header_name="X-API-Key"),
+        auth_credential=lambda: os.environ["CRM_API_KEY"],
+    ),
+)
+```
+
+## Tool Action Confirmations
+
+Request human confirmation before executing sensitive tool operations:
+
+```python
+from google.adk.tools import FunctionTool
+
+def delete_account(account_id: str) -> dict:
+    """Delete a user account. Requires confirmation."""
+    ...
+
+# Mark tool as requiring confirmation
+delete_tool = FunctionTool(
+    func=delete_account,
+    require_confirmation=True,
+)
+```
+
+When the LLM calls a tool with `require_confirmation=True`, the framework pauses execution and waits for human approval before proceeding.
+
+## LoadArtifactsTool
+
+Built-in tool for loading binary artifacts into the agent context:
+
+```python
+from google.adk.tools.load_artifacts_tool import LoadArtifactsTool
+
+agent = LlmAgent(
+    name="artifact_reader", model="gemini-3-flash-preview",
+    instruction="Answer questions about available user files.",
+    tools=[LoadArtifactsTool()],
+)
+```
+
+When the model calls `load_artifacts`, the selected artifact contents are temporarily appended to the LLM request. The content is not permanently saved to session history.

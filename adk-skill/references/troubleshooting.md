@@ -238,11 +238,67 @@ root_agent = Agent(
 
 ## Performance Tips
 
-- Use `gemini-2.5-flash` for most agents, reserve `gemini-2.5-pro` for complex reasoning. Gemini 3 models (`gemini-3-flash`, `gemini-3-pro`) also available
+- Use `gemini-3-flash-preview` for most agents, reserve `gemini-3-pro-preview` for complex reasoning
 - Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
 - Split agents with 5+ tools into focused specialists
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing
 - Keep agent hierarchies max 3-4 levels deep
 - Enable context compaction (`EventsCompactionConfig`) for long conversations
-- Use `Interactions API` (`use_interactions_api=True`) for long stateful conversations
 - Use Plugins for cross-cutting concerns (logging, metrics) instead of per-agent callbacks
+
+---
+
+## ADK 1.x to 2.0 Migration
+
+### Breaking Changes
+
+**1. `_run_async_impl()` overrides are ignored.**
+ADK 2.0's workflow engine bypasses legacy overrides. Custom execution logic in `_run_async_impl()` is silently skipped.
+
+**Fix:** Move custom logic to `BeforeAgentCallback` / `AfterAgentCallback`:
+
+```python
+# ADK 1.x (BROKEN in 2.0):
+class MyAgent(BaseAgent):
+    async def _run_async_impl(self, ctx):
+        # Custom logic here — ignored in 2.0
+        ...
+
+# ADK 2.0 (correct):
+def my_callback(callback_context):
+    # Custom logic here
+    return None  # Proceed normally
+
+agent = LlmAgent(
+    name="my_agent",
+    before_agent_callback=my_callback,
+)
+```
+
+**2. Event schema has new fields.**
+`node_info` and `output` added to Event. Custom session storage with rigid schemas must be updated.
+
+**3. Manual event appending breaks the graph engine.**
+`context.session.events.append(custom_event)` circumvents the workflow engine. Yield events from nodes instead.
+
+**4. `BaseException` traps break HITL and retries.**
+Catching `BaseException` in tools traps `NodeInterruptedError`, disabling HITL pauses and automatic retries.
+
+**Fix:** Let standard exceptions propagate. Do not catch `BaseException` unless re-raising.
+
+**5. Go: new import path.**
+```go
+// 1.x: google.golang.org/adk
+// 2.0: google.golang.org/adk/v2
+import "google.golang.org/adk/v2/..."
+```
+
+**6. Go: `session.NewEvent` requires context.**
+```go
+// 1.x: session.NewEvent(ctx.InvocationID())
+// 2.0: session.NewEvent(ctx, ctx.InvocationID())
+```
+
+### Running 1.x Agents in 2.0
+
+Template workflows (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) still function in ADK 2.0. If you're not ready for graph-based workflows, you can continue using these. However, new development should prefer `Workflow` (graph) or `@node` (dynamic) for better control and reliability.

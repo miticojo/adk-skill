@@ -4,16 +4,17 @@ ADK supports Python, Java, Go, and TypeScript. Core concepts (agents, tools, sta
 
 ## Language Overview
 
-| | Python | Java | Go | TypeScript |
-|--|--------|------|----|------------|
-| **Package** | `google-adk` | `com.google.adk:google-adk` | `google.golang.org/adk` | `@google/adk` |
-| **Min version** | Python 3.10+ | Java 17+ | Go 1.24+ | Node.js 24+ |
-| **Install** | `pip install google-adk` | Maven/Gradle | `go get` | `npm install @google/adk` |
-| **Agent pattern** | Constructor kwargs | Builder pattern | Struct config | Constructor object |
-| **Tool pattern** | Function + docstring | `@Schema` annotations | Struct types | Zod schemas |
-| **Runner** | `InMemoryRunner` (async) | `InMemoryRunner` (RxJava) | Launcher | `InMemoryRunner` |
-| **Entry point** | `root_agent` variable | `ROOT_AGENT` static field | `main()` func | `export rootAgent` |
-| **CLI** | `adk run` / `adk web` | `mvn exec:java` | `go run` | `npx adk run` / `npx adk web` |
+| | Python | Java | Go | Kotlin | TypeScript |
+|--|--------|------|----|--------|------------|
+| **Package** | `google-adk` | `com.google.adk:google-adk` | `google.golang.org/adk/v2` | `com.google.adk:google-adk-kotlin` | `@google/adk` |
+| **Min version** | Python 3.10+ | Java 17+ | Go 1.24+ | Kotlin 1.9+ | Node.js 24+ |
+| **Install** | `pip install google-adk` | Maven/Gradle | `go get google.golang.org/adk/v2` | Gradle | `npm install @google/adk` |
+| **ADK 2.0** | Yes | 1.x | Yes | 1.x | 1.x |
+| **Agent pattern** | Constructor kwargs | Builder pattern | Struct config | Constructor kwargs | Constructor object |
+| **Tool pattern** | Function + docstring | `@Schema` annotations | Struct types | Function + annotations | Zod schemas |
+| **Runner** | `InMemoryRunner` (async) | `InMemoryRunner` (RxJava) | Launcher | `InMemoryRunner` | `InMemoryRunner` |
+| **Entry point** | `root_agent` variable | `ROOT_AGENT` static field | `main()` func | `root_agent` variable | `export rootAgent` |
+| **CLI** | `adk run` / `adk web` | `mvn exec:java` | `go run` | `gradle run` | `npx adk run` / `npx adk web` |
 
 ---
 
@@ -399,6 +400,60 @@ const getWeather = new FunctionTool({
 ```
 
 **Go:** Tools in Go use struct-based types (e.g., `geminitool.GoogleSearch{}`) or custom tool implementations satisfying the `tool.Tool` interface.
+
+**Go 2.0:** Use `workflow.NewFunctionNode` and `workflow.NewAgentNode` for nodes, `workflow.Chain` or `workflow.Concat` with `[]workflow.Edge` for edges, and `workflowagent.New` to wrap as a runnable agent. Import from `google.golang.org/adk/v2`.
+
+---
+
+## Kotlin
+
+ADK also supports Kotlin (v0.1.0+). Build agents using the same concepts as Java with Kotlin-idiomatic APIs.
+
+### Installation
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.google.adk:google-adk-kotlin:0.1.0")
+}
+```
+
+### Agent Creation
+
+```kotlin
+import com.google.adk.agents.llmagent.LlmAgent
+import com.google.adk.models.gemini.Gemini
+
+val agent = LlmAgent(
+    name = "kotlin_agent",
+    model = Gemini(name = "gemini-3-flash-preview"),
+    instruction = Instruction("You are a helpful assistant."),
+)
+```
+
+### Tool Creation
+
+```kotlin
+import com.google.adk.tools.functiontool.FunctionTool
+
+val weatherTool = FunctionTool(
+    name = "get_weather",
+    description = "Get current weather for a city.",
+    function = { args: Map<String, Any?> ->
+        val city = args["city"] as String
+        mapOf("temperature" to 22, "city" to city)
+    }
+)
+```
+
+### Memory and Artifacts
+
+```kotlin
+val memoryService = InMemoryMemoryService()
+val artifactService = InMemoryArtifactService()
+
+// In tools: context.loadArtifact(filename), context.listArtifacts()
+```
 
 ---
 

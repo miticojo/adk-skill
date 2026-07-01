@@ -465,6 +465,35 @@ npx adk eval \
 
 ---
 
+## ADK 2.2+ Evaluators
+
+### RubricBasedMultiTurnTrajectoryEvaluator
+
+Evaluates entire multi-turn conversation trajectories against rubrics, scoring agent behavior across multiple interactions rather than single responses. Useful for evaluating agent consistency, task completion, and user satisfaction over a full conversation.
+
+### User Simulation
+
+ADK can simulate users to test agent conversations without manual interaction:
+
+```python
+from google.adk.evaluation import UserSimulator
+
+simulator = UserSimulator(
+    model="gemini-3-flash-preview",
+    user_persona="A customer who wants to book a flight to Tokyo",
+)
+```
+
+### GEPARootAgentOptimizer (v2.3+)
+
+Automated optimization of root agent prompts and configurations using Genetic Evolutionary Prompt Adaptation (GEPA).
+
+### User Simulator Config in Eval
+
+The `user_simulator_config` can now be exposed in `generate_responses` for eval pipelines (v2.3+).
+
+---
+
 ## Which Metric to Use
 
 | Goal | Recommended Criteria |
