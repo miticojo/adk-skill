@@ -1,5 +1,7 @@
 # ADK Skill
 
+[![release](https://github.com/miticojo/adk-skill/actions/workflows/release.yml/badge.svg)](https://github.com/miticojo/adk-skill/actions/workflows/release.yml)
+
 An [Agent Skill](https://agentskills.io) for building single-agent and multi-agent systems with **Google's Agent Development Kit (ADK)** in **Python, Java, Go, Kotlin, and TypeScript**. Updated for **ADK Python 2.7** with graph-based workflows, dynamic workflows, collaborative agents, managed agents, memory service, and artifacts.
 
 This skill gives your coding agent deep knowledge of ADK architecture, patterns, and best practices — covering workflow types, tools, callbacks, state management, memory, artifacts, multi-agent orchestration, testing, evaluation, and deployment across all supported languages.
@@ -153,6 +155,28 @@ Tested by asking the same ADK architecture question (multi-source parallel resea
 | **Skill with design patterns** | **86/100** | **+161%** |
 
 Largest improvements from design patterns: architecture correctness (4 → 9), anti-pattern avoidance (2 → 9), structured output (1 → 9). The design patterns reference transformed outputs from single "God Agent" implementations into properly composed multi-agent pipelines with fan-out/fan-in, layered fallback, model tiering, and structured data flow.
+
+## Quality Gates & Releases
+
+Every PR and release runs through automated gates ([workflow](.github/workflows/release.yml)):
+
+| Gate | Tool | Current result |
+|------|------|----------------|
+| Spec validation (schema, PII, license, Unicode, lint) | [SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator) Tier-1 | 6/6 pass |
+| Quality grade | SkillEvaluator | **A — 92.5/100** |
+| Security scan (70 patterns, static) | [SkillSpector](https://github.com/NVIDIA/SkillSpector) | SAFE — 0 open issues |
+
+**Releases**: pushing a tag (`v*`) runs the same gates and publishes a GitHub Release with the scan/quality reports attached (see [v2.1.0](https://github.com/miticojo/adk-skill/releases/tag/v2.1.0)). Accepted scanner false positives are recorded in `.skillspector-baseline.yaml`.
+
+**Verify a release yourself** — both tools are deterministic and keyless:
+
+```bash
+curl -sL https://github.com/miticojo/adk-skill/archive/refs/tags/v2.1.0.tar.gz | tar xz && cd adk-skill-2.1.0
+uv tool install "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@v2.9.6"
+uv tool install --python 3.13 "skillevaluator[all] @ git+https://github.com/NVIDIA/SkillEvaluator.git@v0.1.0"
+skillspector scan adk-skill/ --no-llm --baseline .skillspector-baseline.yaml   # → SAFE, 0 open
+skillevaluator quality-check adk-skill                                        # → A 92.5
+```
 
 ## License
 
