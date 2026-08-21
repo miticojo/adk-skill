@@ -24,7 +24,7 @@ fingerprints:
   rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
   file: references/multi-language.md
   reason: Accepted finding (auto-generated baseline)
-- hash: sha256:1c7b77cc14b9e76d175c8fd5403624d2a8393a715afc4b094ef4f922f66a57c5
+- hash: sha256:42c4c2cda2d3d4bae75289b69a8deb4e7607f904ade4cc64e51e82fd8b9243b4
   rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
   file: SKILL.md
   reason: Accepted finding (auto-generated baseline)
