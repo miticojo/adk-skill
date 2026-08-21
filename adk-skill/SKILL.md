@@ -4,7 +4,7 @@ description: "Build single-agent and multi-agent systems using Google's Agent De
 license: MIT
 compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.25+, Node 24+). Package: google-adk 2.0 or later (content verified against 2.7.x; security floor 1.28.1+/2.0.0 per CVE-2026-4810). Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var. Graph-based and dynamic workflows require ADK 2.0+. Jinja2 templating is an optional dependency."
 metadata:
-  author: community
+  author: Giorgio <miticojo@gmail.com>
   version: "2.1"
   mcp-server: adk-docs
 ---
