@@ -64,7 +64,7 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 
 root_agent = Agent(
     name="math_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="You solve math problems.",
     tools=[solve_equation],
 )
@@ -164,7 +164,7 @@ remote_math = RemoteA2aAgent(
 # Use as a sub-agent in your root agent
 root_agent = Agent(
     name="root_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="""You are a helpful assistant.
     Delegate math questions to math_agent.""",
     sub_agents=[remote_math],
@@ -284,7 +284,7 @@ def check_prime(nums: list[int]) -> str:
 
 root_agent = Agent(
     name="prime_checker",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="You check if numbers are prime using the check_prime tool.",
     tools=[check_prime],
 )
@@ -320,7 +320,7 @@ prime_agent = RemoteA2aAgent(
 
 root_agent = Agent(
     name="root_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="""You can roll dice and check if numbers are prime.
     Delegate prime checking tasks to prime_checker.
     1. If asked to roll a die, use roll_die.

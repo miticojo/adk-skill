@@ -11,7 +11,7 @@ from google.adk import Workflow, Event
 from google.adk.agents import LlmAgent
 
 classifier = LlmAgent(
-    name="classifier", model="gemini-3-flash-preview",
+    name="classifier", model="gemini-flash-latest",
     instruction="Classify input as 'BUG', 'SUPPORT', or 'LOGISTICS'.",
     output_schema=str,
 )
@@ -58,7 +58,7 @@ class CityTime(BaseModel):
     city: str
 
 city_agent = LlmAgent(
-    name="city_lookup", model="gemini-3-flash-preview",
+    name="city_lookup", model="gemini-flash-latest",
     instruction="Return a random city name.", output_schema=str,
 )
 
@@ -66,7 +66,7 @@ def lookup_time(city: str) -> CityTime:
     return CityTime(time_info="10:10 AM", city=city)
 
 reporter = LlmAgent(
-    name="reporter", model="gemini-3-flash-preview",
+    name="reporter", model="gemini-flash-latest",
     input_schema=CityTime,
     instruction="Report: It is {time_info} in {city} right now.",
 )

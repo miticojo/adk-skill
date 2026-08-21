@@ -193,7 +193,7 @@ More flexible than ROUGE — tolerates different phrasing, formatting, additiona
     "final_response_match_v2": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       }
     }
@@ -211,7 +211,7 @@ Evaluate subjective quality without a reference response. Define custom rubrics:
     "rubric_based_final_response_quality_v1": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       },
       "rubrics": [
@@ -243,7 +243,7 @@ Validate agent reasoning process with custom tool-use rubrics:
     "rubric_based_tool_use_quality_v1": {
       "threshold": 1.0,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       },
       "rubrics": [
@@ -275,7 +275,7 @@ Checks if agent claims are grounded in context (tool outputs, instructions, user
     "hallucinations_v1": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash"
+        "judge_model": "gemini-flash-latest"
       },
       "evaluate_intermediate_nl_responses": true
     }
@@ -429,7 +429,7 @@ Override defaults in eval config:
     "safety_v1": {"threshold": 0.8}
   },
   "user_simulator_config": {
-    "model": "gemini-2.5-flash",
+    "model": "gemini-flash-latest",
     "model_configuration": {
       "thinking_config": {
         "include_thoughts": true,
@@ -479,7 +479,7 @@ ADK can simulate users to test agent conversations without manual interaction:
 from google.adk.evaluation import UserSimulator
 
 simulator = UserSimulator(
-    model="gemini-3-flash-preview",
+    model="gemini-flash-latest",
     user_persona="A customer who wants to book a flight to Tokyo",
 )
 ```

@@ -41,7 +41,7 @@ await memory_service.add_session_to_memory(completed_session)
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
 agent = LlmAgent(
-    name="memory_agent", model="gemini-3-flash-preview",
+    name="memory_agent", model="gemini-flash-latest",
     tools=[PreloadMemoryTool()],
 )
 ```
@@ -52,7 +52,7 @@ agent = LlmAgent(
 from google.adk.tools import load_memory
 
 agent = LlmAgent(
-    name="memory_agent", model="gemini-3-flash-preview",
+    name="memory_agent", model="gemini-flash-latest",
     tools=[load_memory],
 )
 ```
@@ -81,7 +81,7 @@ async def auto_save_to_memory(callback_context):
     await callback_context.add_session_to_memory()
 
 agent = LlmAgent(
-    name="agent", model="gemini-3-flash-preview",
+    name="agent", model="gemini-flash-latest",
     after_agent_callback=auto_save_to_memory,
     tools=[PreloadMemoryTool()],
 )
@@ -176,7 +176,7 @@ Built-in tool that lets the LLM decide which artifacts to load before answering:
 from google.adk.tools.load_artifacts_tool import LoadArtifactsTool
 
 agent = LlmAgent(
-    name="artifact_reader", model="gemini-3-flash-preview",
+    name="artifact_reader", model="gemini-flash-latest",
     instruction="Answer questions about available user files. Call load_artifacts before answering.",
     tools=[LoadArtifactsTool()],
 )

@@ -225,7 +225,7 @@ Resume via API: `runner.run_async(user_id=..., session_id=..., invocation_id=...
 **Fix:** Add retry options:
 ```python
 root_agent = Agent(
-    model='gemini-2.5-flash',
+    model='gemini-flash-latest',
     generate_content_config=types.GenerateContentConfig(
         http_options=types.HttpOptions(
             retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3),
@@ -238,7 +238,7 @@ root_agent = Agent(
 
 ## Performance Tips
 
-- Use `gemini-3-flash-preview` for most agents, reserve `gemini-3-pro-preview` for complex reasoning
+- Use `gemini-flash-latest` for most agents, reserve `gemini-3.1-pro-preview` for complex reasoning
 - Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
 - Split agents with 5+ tools into focused specialists
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing

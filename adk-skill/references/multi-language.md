@@ -62,7 +62,7 @@ public class MyAgent {
     private static BaseAgent initAgent() {
         return LlmAgent.builder()
             .name("my_agent")
-            .model("gemini-2.5-flash")
+            .model("gemini-flash-latest")
             .description("Agent description for routing")
             .instruction("Detailed system prompt...")
             .tools(FunctionTool.create(MyAgent.class, "getWeather"))
@@ -98,12 +98,12 @@ public static Map<String, Object> addToCart(
 
 ```java
 LlmAgent researcher = LlmAgent.builder()
-    .name("researcher").model("gemini-2.5-flash")
+    .name("researcher").model("gemini-flash-latest")
     .instruction("Research the topic.").outputKey("research")
     .build();
 
 LlmAgent writer = LlmAgent.builder()
-    .name("writer").model("gemini-2.5-flash")
+    .name("writer").model("gemini-flash-latest")
     .instruction("Write report based on research.")
     .build();
 
@@ -195,7 +195,7 @@ import (
 func main() {
     ctx := context.Background()
 
-    model, err := gemini.NewModel(ctx, "gemini-2.5-flash",
+    model, err := gemini.NewModel(ctx, "gemini-flash-latest",
         &genai.ClientConfig{
             APIKey: os.Getenv("GOOGLE_API_KEY"),
         })
@@ -259,7 +259,7 @@ import { LlmAgent } from '@google/adk';
 
 export const rootAgent = new LlmAgent({
     name: 'my_agent',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-flash-latest',
     description: 'Agent description',
     instruction: 'Detailed system prompt...',
     tools: [getWeather],
@@ -293,12 +293,12 @@ const getWeather = new FunctionTool({
 import { LlmAgent, SequentialAgent, ParallelAgent } from '@google/adk';
 
 const researcher = new LlmAgent({
-    name: 'researcher', model: 'gemini-2.5-flash',
+    name: 'researcher', model: 'gemini-flash-latest',
     instruction: 'Research the topic.', outputKey: 'research',
 });
 
 const writer = new LlmAgent({
-    name: 'writer', model: 'gemini-2.5-flash',
+    name: 'writer', model: 'gemini-flash-latest',
     instruction: 'Write report based on research.',
 });
 
@@ -313,7 +313,7 @@ export const rootAgent = new SequentialAgent({
 ```typescript
 export const rootAgent = new LlmAgent({
     name: 'guarded_agent',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-flash-latest',
     instruction: '...',
     tools: [myTool],
     beforeToolCallback: (tool, args, toolContext) => {
@@ -426,7 +426,7 @@ import com.google.adk.models.gemini.Gemini
 
 val agent = LlmAgent(
     name = "kotlin_agent",
-    model = Gemini(name = "gemini-3-flash-preview"),
+    model = Gemini(name = "gemini-flash-latest"),
     instruction = Instruction("You are a helpful assistant."),
 )
 ```

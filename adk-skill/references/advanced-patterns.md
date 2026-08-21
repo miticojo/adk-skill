@@ -12,28 +12,28 @@ from google.adk.agents import Agent, SequentialAgent, ParallelAgent
 # Level 3: Leaf agents
 email_drafter = Agent(
     name="email_drafter",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="Draft an email announcement based on the message in state.",
     output_key="email_draft",
 )
 
 email_publisher = Agent(
     name="email_publisher",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="Review and publish the email draft.",
     tools=[publish_email],
 )
 
 slack_drafter = Agent(
     name="slack_drafter",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="Draft a Slack message based on the announcement.",
     output_key="slack_draft",
 )
 
 slack_publisher = Agent(
     name="slack_publisher",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="Post the Slack message.",
     tools=[post_to_slack],
 )
@@ -116,7 +116,7 @@ Let the LLM decide which sub-agent to delegate to:
 ```python
 root_agent = Agent(
     name="router",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="""You are a customer service router.
     - For billing questions, transfer to billing_agent
     - For technical issues, transfer to tech_support_agent
@@ -264,7 +264,7 @@ from google.adk.sessions import VertexAiSessionService
 
 agent = Agent(
     name="production_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="...",
 )
 
@@ -329,7 +329,7 @@ class Config(BaseSettings):
         env_prefix="AGENT_",
     )
 
-    model: str = "gemini-2.5-flash"
+    model: str = "gemini-flash-latest"
     temperature: float = 0.7
     google_api_key: str = ""
     google_cloud_project: str = ""
@@ -387,7 +387,7 @@ app = App(
 from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.models import Gemini
 
-summarizer = LlmEventSummarizer(llm=Gemini(model="gemini-2.5-flash"))
+summarizer = LlmEventSummarizer(llm=Gemini(model="gemini-flash-latest"))
 app = App(
     name='my-agent',
     root_agent=root_agent,
@@ -543,7 +543,7 @@ from google.adk.models.google_llm import Gemini
 
 root_agent = Agent(
     model=Gemini(
-        model="gemini-2.5-flash",
+        model="gemini-flash-latest",
         use_interactions_api=True,
     ),
     name="stateful_agent",
@@ -566,11 +566,12 @@ ADK supports non-Gemini models via adapters:
 
 | Provider | Model Config | Notes |
 |----------|-------------|-------|
-| Gemini (default) | `model="gemini-2.5-flash"` | Full feature support |
+| Gemini (default: `gemini-3.5-flash`) | `model="gemini-flash-latest"` | Full feature support; OCI GenAI also available (2.6+) |
 | Claude (Anthropic) | `model="claude-sonnet-4-20250514"` | Via google-genai |
 | Ollama | `model="ollama/llama3"` | Local models |
 | LiteLLM | `model="litellm/gpt-4o"` | Multi-provider proxy |
 | vLLM | Custom adapter | Self-hosted models |
+| OpenAI (labs) | `labs` OpenAI Responses API model | 2.4+ |
 
 ```python
 # Claude example
@@ -607,7 +608,7 @@ This generates `my_agent/root_agent.yaml`:
 
 ```yaml
 name: assistant_agent
-model: gemini-3-flash-preview
+model: gemini-flash-latest
 description: A helper agent that can answer users' questions.
 instruction: You are an agent to help answer users' various questions.
 tools:

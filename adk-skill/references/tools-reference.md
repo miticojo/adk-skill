@@ -188,7 +188,7 @@ weather_skill = load_skill_from_dir(
 )
 
 root_agent = Agent(
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     name="skill_user_agent",
     instruction="You are a helpful assistant that can leverage skills.",
     tools=[
@@ -335,7 +335,7 @@ Built-in tool for loading binary artifacts into the agent context:
 from google.adk.tools.load_artifacts_tool import LoadArtifactsTool
 
 agent = LlmAgent(
-    name="artifact_reader", model="gemini-3-flash-preview",
+    name="artifact_reader", model="gemini-flash-latest",
     instruction="Answer questions about available user files.",
     tools=[LoadArtifactsTool()],
 )

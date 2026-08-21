@@ -34,7 +34,7 @@ adk-skill/
 - **troubleshooting.md** — setup errors, runtime issues, ADK 1.x→2.0 migration (6 breaking changes with fixes), Go v2 import path and `NewEvent` changes, event schema updates, performance tips
 - **workflows.md** — Graph-based routing (conditional, multi-route, data flow), dynamic workflows (loops, branching, parallel execution, custom execution IDs), Human-in-the-Loop (graph and dynamic patterns), known limitations
 
-The skill also references the official [ADK documentation](https://google.github.io/adk-docs/llms.txt) and [ADK samples](https://github.com/google/adk-samples) for always up-to-date API details.
+The skill also references the official [ADK documentation](https://adk.dev/llms.txt) and [ADK samples](https://github.com/google/adk-samples) for always up-to-date API details.
 
 ## Install
 
