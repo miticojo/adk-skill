@@ -6,6 +6,8 @@ The [Agent2Agent (A2A) Protocol](https://a2a-protocol.org/) is an open standard 
 
 **Status:** Supported in Python and Go (Experimental).
 
+**Protocol v1.0 (spec, Mar 2026):** A2A 1.0 changed wire semantics from 0.3 — enum values are `SCREAMING_SNAKE_CASE`; `protocolVersion` moved into per-interface `supportedInterfaces[]`; Agent Cards can be JWS-signed; multi-tenancy via a `tenant` field; OAuth implicit/password flows removed (PKCE + Device Code added). ADK accepts `a2a-sdk` 1.x since ADK 2.5.
+
 ## When to Use A2A vs Local Sub-Agents
 
 | Criteria | A2A (Remote) | Local Sub-Agents |
@@ -440,6 +442,8 @@ asyncio.run(run_all_tests())  # Single event loop for all A2A tests
 ```
 
 **Experimental status:** ADK's A2A implementation emits `UserWarning` messages about experimental status. The A2A protocol and SDK themselves are stable; only ADK's integration layer is experimental. Suppress with `warnings.filterwarnings("ignore", category=UserWarning)` if needed.
+
+**ADK 2.6 additions:** per-invocation auth headers when fetching agent cards; `to_a2a()` apps can be served under a path prefix; remote task cancellation is honored instead of raising `NotImplementedError`; A2A converters extract metadata symmetrically in both directions.
 
 ---
 

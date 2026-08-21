@@ -95,6 +95,25 @@ tools = MCPToolset(
 )
 ```
 
+### MCP Extras (2.7+)
+
+- `elicitation_callback=` on `MCPToolset` — handle server elicitation requests programmatically.
+- `MCPToolset` can reuse the server's tool list instead of re-declaring schemas.
+- HTTP trace debugging extends to MCP toolset operations (2.4+).
+
+## Agent as MCP Server
+
+Expose an entire ADK agent as one MCP tool so any MCP host (Claude Code, IDEs, Codex) can drive it — the MCP counterpart of `to_a2a()` (2.5+):
+
+```python
+from google.adk.tools.mcp_tool import to_mcp_server
+
+server = to_mcp_server(root_agent)   # -> FastMCP; name/instructions/runner optional
+server.run(transport="stdio")        # or transport="streamable-http"
+```
+
+One ADK session is kept per MCP connection, so successive calls form a multi-turn conversation.
+
 ## Vertex AI RAG Retrieval
 
 ```python
@@ -151,6 +170,21 @@ agent = Agent(
     tools=[pubsub],
 )
 ```
+
+## Eventarc Advanced Toolset
+
+Receive and act on Google Cloud events via Eventarc Advanced (2.6+):
+
+```python
+from google.adk.integrations.eventarc import EventarcToolset
+
+agent = Agent(
+    name="event_responder",
+    tools=[EventarcToolset()],
+)
+```
+
+Supports Context callables and correct OMIT behavior (2.7+).
 
 ## OpenAPI Tools
 
@@ -230,7 +264,10 @@ greeting_skill = models.Skill(
 )
 ```
 
-**Known limitation:** Script execution (`scripts/` directory) is not yet supported.
+**Notes (2.5+ / 2.7+):**
+- The Google Cloud Skill Registry backend migrated to the Agent Registry endpoint — enable the Agent Registry API and migrate data when upgrading.
+- Non-blocking skill loading is supported in async runtimes.
+- Skills can execute `scripts/` inside an [Environment](#environments-sandboxed-code-execution) (Daytona, Cloud Run sandbox).
 
 ---
 
@@ -341,4 +378,12 @@ agent = LlmAgent(
 )
 ```
 
-When the model calls `load_artifacts`, the selected artifact contents are temporarily appended to the LLM request. The content is not permanently saved to session history.
+When the model calls `load_artifacts`, the selected artifact contents are temporarily appended to the LLM request. The content is not permanently saved to session history. 2.5+ parses binary text documents (e.g. DOCX); 2.7+ lets you customize how attachment data is fed to the LLM.
+
+## Media in Function Responses
+
+Since 2.7, tools can return media (images/audio) as part of the function response instead of text-only results — return the media `Part` in the response payload and ADK forwards it to the model/user.
+
+## Environments (Sandboxed Code Execution)
+
+Code-executor sandboxes are pluggable "Environments": E2B (`[e2b]` extra), Daytona (`DaytonaEnvironment`, 2.4+, `[daytona]` extra), and Cloud Run sandbox (2.5+). Skills scripts and code execution run against the configured environment — see `references/advanced-patterns.md` for deployment details.

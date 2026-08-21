@@ -6,15 +6,28 @@ ADK supports Python, Java, Go, and TypeScript. Core concepts (agents, tools, sta
 
 | | Python | Java | Go | Kotlin | TypeScript |
 |--|--------|------|----|--------|------------|
-| **Package** | `google-adk` | `com.google.adk:google-adk` | `google.golang.org/adk/v2` | `com.google.adk:google-adk-kotlin` | `@google/adk` |
-| **Min version** | Python 3.10+ | Java 17+ | Go 1.24+ | Kotlin 1.9+ | Node.js 24+ |
+| **Package** | `google-adk` | `com.google.adk:google-adk` | `google.golang.org/adk/v2` | `com.google.adk:google-adk-kotlin-core` | `@google/adk` |
+| **Min version** | Python 3.10+ | Java 17+ | Go 1.25+ (v2) | Kotlin 1.9+ | Node.js 24+ |
+| **Latest** | 2.7.x | 1.8.0 | v2.2.0 (+1.x LTS) | 0.8.0 pre-GA | 2.0.0 (+1.x LTS) |
 | **Install** | `pip install google-adk` | Maven/Gradle | `go get google.golang.org/adk/v2` | Gradle | `npm install @google/adk` |
-| **ADK 2.0** | Yes | 1.x | Yes | 1.x | 1.x |
+| **ADK 2.x** | Reference impl | No 2.x yet | Yes | No | Yes (experimental) |
 | **Agent pattern** | Constructor kwargs | Builder pattern | Struct config | Constructor kwargs | Constructor object |
 | **Tool pattern** | Function + docstring | `@Schema` annotations | Struct types | Function + annotations | Zod schemas |
 | **Runner** | `InMemoryRunner` (async) | `InMemoryRunner` (RxJava) | Launcher | `InMemoryRunner` | `InMemoryRunner` |
 | **Entry point** | `root_agent` variable | `ROOT_AGENT` static field | `main()` func | `root_agent` variable | `export rootAgent` |
 | **CLI** | `adk run` / `adk web` | `mvn exec:java` | `go run` | `gradle run` | `npx adk run` / `npx adk web` |
+
+### 2.x Feature Parity (verified Aug 2026)
+
+| Capability | Python 2.7 | Go v2.2 | TS 2.0 | Java 1.8 | Kotlin 0.8 |
+|------------|:---:|:---:|:---:|:---:|:---:|
+| Graph-based Workflow | ✅ | ✅ | ✅ @experimental | ❌ | ❌ |
+| Dynamic nodes | ✅ | ✅ | ✅ `ctx.runNode()` | ❌ | ❌ |
+| Collab modes (`chat`/`task`/`single_turn`) | ✅ all | ✅ all | ◐ no `chat` | ❌ | ❌ |
+| Plugins | ✅ | ✅ | ✅ incl. node callbacks | ✅ | ✅ |
+| Session rewind | ✅ | UNVERIFIED | ❌ | groundwork only | UNVERIFIED |
+
+Java/Kotlin remain on the 1.x-style template-agent model; Python features land there later or not at all.
 
 ---
 
@@ -38,12 +51,12 @@ my_agent/
     <dependency>
         <groupId>com.google.adk</groupId>
         <artifactId>google-adk</artifactId>
-        <version>0.5.0</version>
+        <version>1.8.0</version>
     </dependency>
     <dependency>
         <groupId>com.google.adk</groupId>
         <artifactId>google-adk-dev</artifactId>
-        <version>0.5.0</version>
+        <version>1.8.0</version>
     </dependency>
 </dependencies>
 ```
@@ -153,6 +166,14 @@ List<BaseTool> mcpTools = result.getTools().stream()
     .map(t -> (BaseTool) t).collect(Collectors.toList());
 ```
 
+### Recent Java Additions (1.6.0–1.8.0)
+
+- `ClassPathSkillSource` — load Agent Skills from the classpath (1.6+)
+- `RunConfig.groupFunctionResponsesInHistory` (1.6+)
+- `SequentialAgent` advances to later sub-agents after HITL resume when resumability is enabled (1.6+)
+- Plugin + Runner `onRunErrorCallback` hook (1.8+)
+- Forced function-call reordering for gemini-3 models; A2A request metadata propagated into `RunConfig` (1.7+)
+
 ---
 
 ## Go
@@ -168,11 +189,15 @@ my_agent/
 
 ### Setup
 
+Go ships dual lines: v1 (`google.golang.org/adk`) and the current v2 line (requires **Go 1.25+**):
+
 ```bash
 go mod init my-agent/main
-go get google.golang.org/adk
+go get google.golang.org/adk/v2
 go mod tidy
 ```
+
+Key v2 packages: `agent`, `workflow`, `runner`, `plugin`, `model`, `tool`, `session`, `memory`, `artifact`, `auth`, `server`, `agentregistry`, `platform`.
 
 ### Agent Creation (Struct Config)
 
@@ -226,6 +251,13 @@ source .env
 go run agent.go                    # CLI mode
 go run agent.go web api webui      # Web UI on localhost:8080
 ```
+
+### Go 2.x Highlights (v2.0.0–v2.2.0)
+
+- **Graph workflows**: static + dynamic graphs, conditional routing, fan-out/fan-in `JoinNode`, parallel workers, per-node retries/timeouts, HITL pause/resume.
+- **Collaboration**: `LlmAgent` gains `chat`, `task`, `single_turn` modes with isolation-scoped history.
+- **Context unification**: `ToolContext`+`CallbackContext` merged into a single `agent.Context` (`agent.StrictContextMock` in tests).
+- **v2.1+**: platform `TaskRunner` seam; name-based model registry (`Register`/`NewLLM`); `PackTool`; `runner.NewInMemory`; `agentregistry` package (REST + discovery); `RemoteAgent`/`McpToolset` factories; auth credential providers; MCP per-request auth via `Config.Auth`.
 
 ---
 
@@ -357,6 +389,14 @@ npx adk run agent.ts        # CLI mode
 npx adk web                 # Web UI on localhost:8000
 ```
 
+### TypeScript 2.0 Changes (Aug 2026)
+
+- **Workflow engine core** (`@experimental`): graphs, node registry, dynamic scheduling via `ctx.runNode()`, `JoinNode`, HITL utils, retry configs.
+- **Breaking:** `BaseAgent extends BaseNode` — agents carry `rerunOnResume`, `waitForOutput`, `retryConfig`, `timeout`, `inputSchema`/`outputSchema`. `InvocationContext.agent` is optional; use `requireAgent(ctx)`.
+- **Deprecated:** `SequentialAgent`/`ParallelAgent`/`LoopAgent` (graph workflows replace them); `LLMAgentWrapper` removed.
+- **Collaboration:** node config `mode: 'single_turn' | 'task'` — no `chat` mode yet.
+- Also: plugins with before/after-node callbacks, security/logging plugins, `RoutedAgent`/`RoutedLlm` routing (graduated from experimental), `Runner.runLive`, `require_confirmation` on tools, skills subsystem (`SkillToolset`, `loadSkillFromDir`).
+
 ---
 
 ## Cross-Language Comparison: Tool Definition
@@ -407,16 +447,18 @@ const getWeather = new FunctionTool({
 
 ## Kotlin
 
-ADK also supports Kotlin (v0.1.0+). Build agents using the same concepts as Java with Kotlin-idiomatic APIs.
+Kotlin ADK is a separate, Android/on-device-first implementation (LiteRT-LM on-device chat, ML Kit, Firebase model streaming) — pre-GA at 0.x. Build agents using Java-interop builders or Kotlin-idiomatic APIs.
 
 ### Installation
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("com.google.adk:google-adk-kotlin:0.1.0")
+    implementation("com.google.adk:google-adk-kotlin-core:0.8.0")
 }
 ```
+
+Sibling artifacts: `-core-jvm`, `-core-android`, `-a2a`, `-webserver`, `-integrations`, `-litertlm-{jvm,android}`, `-mlkit-android`, `-processor`. 0.8.0 adds BigQuery agent-analytics plugin and Java-friendly builders.
 
 ### Agent Creation
 

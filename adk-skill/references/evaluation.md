@@ -341,6 +341,9 @@ adk eval \
 adk eval \
   my_agent \
   my_agent/eval_set.evalset.json:case_1,case_2
+
+# Save results to CSV (2.7+); auto-discovers sibling test_config.json for a single file
+adk eval my_agent my_agent/eval_set.evalset.json --save_results_to_csv results.csv
 ```
 
 ### Method 2: Pytest (`AgentEvaluator`)
@@ -365,6 +368,8 @@ async def test_eval_directory():
         eval_dataset_file_path_or_dir="tests/eval/",
     )
 ```
+
+2.7+ adds optional eval-result persistence to `AgentEvaluator` and compatibility with pre-loaded artifacts.
 
 ### Method 3: Web UI (`adk web`)
 
@@ -441,7 +446,9 @@ Override defaults in eval config:
 }
 ```
 
-**Note**: User simulation only supports `hallucinations_v1`, `safety_v1`, rubric-based criteria, and `per_turn_user_simulator_quality_v1`. Reference-based criteria (`tool_trajectory_avg_score`, `response_match_score`, `final_response_match_v2`) are not supported with user simulation.
+**Note**: User simulation only supports `hallucinations_v1`, `safety_v1`, rubric-based criteria, and `per_turn_user_simulator_quality_v1`. Reference-based criteria (`tool_trajectory_avg_score`, `response_match_score`, `final_response_match_v2`) are not supported with user simulation. Audio-generation user simulators are supported since 2.6; live/audio evals have public entrypoints since 2.6.
+
+**Official eval samples (2.6+)**: the adk-python repo ships runnable samples for each criterion style — `basic_criteria`, `custom_metric`, `llm_judge_match`, `rubric_criteria`, `test_file_vs_evalset`, `user_simulation`, plus a shared home-automation agent.
 
 ---
 

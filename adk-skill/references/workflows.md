@@ -46,6 +46,28 @@ def router(node_input: str):
     return Event(route=["BUG", "SUPPORT"])  # Routes to both handlers
 ```
 
+Fan-out can also be declared in the edge dict itself — a tuple value triggers both targets:
+
+```python
+(classifier, {"BUG": (handle_bug, audit_log), "SUPPORT": handle_support})
+```
+
+### Edge Syntax Reference
+
+| Form | Meaning |
+|------|---------|
+| `("START", a)` | Entry edge |
+| `("START", a, b, c)` | Chain shorthand — expands to `a→b→c` |
+| `(a, {"r1": x, "r2": y})` | Dict routing on emitted route values |
+| `(a, x, "r1")` | Three-tuple routed edge (single route per edge) |
+| `(a, {"__DEFAULT__": x})` | Fallback when no explicit route matches |
+
+Rules enforced by graph validation:
+- Edges leaving `START` cannot declare routes.
+- Only one `__DEFAULT__` target per source node (`DEFAULT_ROUTE = "__DEFAULT__"`).
+- Duplicate edges between the same pair of nodes are rejected.
+- All nodes must be reachable from `START`; cycles are rejected.
+
 ### Data Flow Between Nodes
 
 Nodes pass data via typed return values. Agent nodes use `input_schema`/`output_schema` (Pydantic):
@@ -144,6 +166,28 @@ async def process_orders(ctx: Context, orders: list[str]) -> list[str]:
 
 Custom `run_id` must contain at least one non-numeric character to avoid collision with auto-generated sequential IDs.
 
+### Node Options and Retries
+
+The `@node` decorator accepts execution controls (2.4+):
+
+```python
+from google.adk.workflow import node, RetryConfig
+
+@node(
+    retry_config=RetryConfig(max_attempts=3, initial_delay=1.0,
+                             backoff_factor=2.0, exceptions=["ValueError"]),
+    timeout=30.0,
+    parallel_worker=True, max_parallel_workers=8,  # run many items concurrently
+)
+def fetch(url: str) -> str: ...
+```
+
+`RetryConfig` fields: `max_attempts`, `initial_delay` (default 1.0s), `max_delay` (60.0s), `backoff_factor` (2.0), `jitter` (1.0; 0.0 disables), `exceptions` (names or classes). For fan-in synchronization after parallel branches, use `JoinNode`, which fires only after all its predecessors have triggered.
+
+### Strict Edge Schemas
+
+As of 2.5, graph validation fails fast when a source's `output_schema` does not equal the target's `input_schema` on an edge ("Schema mismatch on edge X -> Y"). Align Pydantic models or drop the schemas to rely on plain values.
+
 ---
 
 ## Human-in-the-Loop (HITL)
@@ -180,6 +224,19 @@ async def handle_process(ctx: Context, node_input: str) -> str:
 - Parent orchestrator nodes MUST set `rerun_on_resume=True` to handle interruptions.
 - Leaf nodes requesting input typically use `rerun_on_resume=False` (handoff mode).
 - Never catch `BaseException` in tools — it traps `NodeInterruptedError`, breaking HITL.
+- 2.5+ adds HITL resumption for standalone nodes and `NodeTool` — a paused tool/node resumes without re-running its parent graph.
+
+---
+
+## Collaboration Modes in Workflows
+
+| Mode | User Interaction | Control Flow | Parallel | Return to Parent |
+|------|-----------------|-------------|----------|-----------------|
+| `chat` (default as sub-agent) | Full interaction | Agent controls until handoff | No | Manual (transfer) |
+| `task` | Clarification only | Agent controls until complete | No | Automatic (`complete_task`) |
+| `single_turn` (default as node) | Disallowed | Returns immediately after task | Yes | Automatic (with result) |
+
+**Note:** Do NOT set `mode` on the root agent. Task-mode agents cannot have sub-agents.
 
 ---
 
@@ -187,4 +244,6 @@ async def handle_process(ctx: Context, node_input: str) -> str:
 
 - **Live streaming** is not supported in graph-based workflows.
 - Some third-party integrations may not be compatible with graph-based workflows.
-- `task` collaboration mode is disabled in graph-based workflows (Python v2.0; expected to be re-enabled in a future release).
+- **chat-mode agents in graphs**: only reachable directly from `START` (they need conversational history, not node inputs). Incoming edges from other nodes raise a validation error telling you to use `mode="single_turn"`.
+- **task-mode nodes** were disabled at 2.0; 2.5 re-enables them with state-based resumption, so task agents survive pause/resume inside graphs.
+- Legacy orchestrators (`SequentialAgent`/`ParallelAgent`/`LoopAgent`) are rejected if embedded as Workflow nodes (2.5 validation) — compose graphs from agents, functions, and dynamic nodes instead.

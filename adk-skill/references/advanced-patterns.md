@@ -275,6 +275,12 @@ session_service = VertexAiSessionService(
 )
 ```
 
+Deploy with `adk deploy agent_engine` (supports `--extra_packages` since 2.6). Session TTL/expiration supported in Vertex sessions (2.4+).
+
+### GKE
+
+Containerize the FastAPI app (or the Go launcher binary) and deploy with `kubectl`. Requires a GKE cluster; supports Agent Platform or AI Studio via `GOOGLE_GENAI_USE_ENTERPRISE`. See https://adk.dev/deploy/gke/.
+
 ### API Server (FastAPI Integration)
 
 ```python
@@ -406,7 +412,28 @@ When enabled, ADK tracks workflow execution via Events. On interruption and rest
 - **LoopAgent**: Continues from saved `current_sub_agent` + `times_looped`
 - **ParallelAgent**: Runs only sub-agents that haven't completed
 
-Tools that completed successfully are NOT re-run. Tools run at-least-once, so idempotency matters.
+Tools that completed successfully are NOT re-run. Tools run at-least-once, so idempotency matters. Since 2.5, task-mode agent nodes in graphs also support state-based resumption.
+
+### Context Caching
+
+Cut cost/latency on long, stable prefixes by caching context at the App level (all agents in the app share the setting):
+
+```python
+from google.adk.apps.app import App
+from google.adk.agents.context_cache_config import ContextCacheConfig
+
+app = App(
+    name="my-caching-agent-app",
+    root_agent=root_agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=2048,    # Minimum tokens to trigger caching (default 0)
+        ttl_seconds=600,    # Cache lifetime in seconds (default 1800)
+        cache_intervals=5,  # Max uses before refresh (default 10)
+    ),
+)
+```
+
+If cache creation times out or fails, requests proceed uncached. ADK warns when agent transfer runs without a cache config (2.7+).
 
 ---
 
@@ -486,12 +513,14 @@ runner = InMemoryRunner(
 | `on_model_error_callback` | LLM error | Yes (fallback response) |
 | `before_tool_callback` / `after_tool_callback` | Tool execution | Yes / Yes |
 | `on_tool_error_callback` | Tool error | Yes (fallback dict) |
+| `on_agent_error_callback` | Agent invocation error (2.5+) | — |
+| `on_run_error_callback` | Run-level error (2.5+) | — |
 | `on_event_callback` | Event yielded | Yes (replace event) |
 | `after_run_callback` | Runner finishes | No (teardown only) |
 
 ### Prebuilt Plugins
 
-- **Reflect and Retry**: Auto-retries failed tools
+- **Reflect and Retry**: Auto-retries failed tools; `ReflectAndRetryModelPlugin` (2.6+) self-heals model errors by reflecting on the failure and retrying
 - **BigQuery Analytics**: Agent logging to BigQuery
 - **Context Filter**: Reduces context size
 - **Global Instruction**: App-level instructions
@@ -557,6 +586,52 @@ from google.adk.tools.google_search_tool import GoogleSearchTool
 # Convert built-in to function tool
 tools=[GoogleSearchTool(bypass_multi_tools_limit=True), custom_tool]
 ```
+
+---
+
+## Managed Agents (Preview, 2.4+)
+
+`ManagedAgent` delegates to Google-hosted agent builds via the Managed Agents API instead of running the model loop yourself:
+
+```python
+import os
+from google.adk.agents import ManagedAgent
+from google.adk.tools import google_search
+
+agent = ManagedAgent(
+    name="my_managed_agent",
+    managed_agent=os.environ["MANAGED_AGENT_ID"],  # Gemini API or Agent Platform backend
+    instruction="You are a helpful research assistant.",  # forwarded as system_instruction (2.6+)
+    tools=[google_search],
+)
+```
+
+Behavior notes:
+- `mode="single_turn"` supported since 2.5; single_turn non-LlmAgent sub-agents are wrapped as inline tools.
+- Remote MCP servers work with runtime header callbacks (2.5+).
+- Sessions stay local; execution state lives remotely — see https://adk.dev/agents/managed-agents/.
+
+---
+
+## Ambient Agents (1.29+)
+
+Run agents without a user in the loop: events from Pub/Sub push or Eventarc trigger runs over HTTP.
+
+```bash
+# /run endpoint (manual event posting)
+adk api_server --auto_create_session path/to/agent
+
+# Trigger endpoints for event sources
+adk api_server --trigger_sources "pubsub,eventarc" path/to/agent
+```
+
+```bash
+curl -X POST http://localhost:8000/apps/my_agent/trigger/pubsub \
+  -H "Content-Type: application/json" \
+  -d '{"message": {"data": "<base64 json>", "attributes": {"source": "orders-service"}}}'
+```
+
+Trigger endpoints parse the source format, decode base64 payloads, auto-create a session per event, run the agent with the decoded event as the user message, and return 200/500 so the source can retry on failure. See https://adk.dev/runtime/ambient-agents/.
 
 ---
 
