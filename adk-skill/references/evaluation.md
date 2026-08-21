@@ -193,7 +193,7 @@ More flexible than ROUGE — tolerates different phrasing, formatting, additiona
     "final_response_match_v2": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       }
     }
@@ -211,7 +211,7 @@ Evaluate subjective quality without a reference response. Define custom rubrics:
     "rubric_based_final_response_quality_v1": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       },
       "rubrics": [
@@ -243,7 +243,7 @@ Validate agent reasoning process with custom tool-use rubrics:
     "rubric_based_tool_use_quality_v1": {
       "threshold": 1.0,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash",
+        "judge_model": "gemini-flash-latest",
         "num_samples": 5
       },
       "rubrics": [
@@ -275,7 +275,7 @@ Checks if agent claims are grounded in context (tool outputs, instructions, user
     "hallucinations_v1": {
       "threshold": 0.8,
       "judge_model_options": {
-        "judge_model": "gemini-2.5-flash"
+        "judge_model": "gemini-flash-latest"
       },
       "evaluate_intermediate_nl_responses": true
     }
@@ -341,6 +341,9 @@ adk eval \
 adk eval \
   my_agent \
   my_agent/eval_set.evalset.json:case_1,case_2
+
+# Save results to CSV (2.7+); auto-discovers sibling test_config.json for a single file
+adk eval my_agent my_agent/eval_set.evalset.json --save_results_to_csv results.csv
 ```
 
 ### Method 2: Pytest (`AgentEvaluator`)
@@ -365,6 +368,8 @@ async def test_eval_directory():
         eval_dataset_file_path_or_dir="tests/eval/",
     )
 ```
+
+2.7+ adds optional eval-result persistence to `AgentEvaluator` and compatibility with pre-loaded artifacts.
 
 ### Method 3: Web UI (`adk web`)
 
@@ -429,7 +434,7 @@ Override defaults in eval config:
     "safety_v1": {"threshold": 0.8}
   },
   "user_simulator_config": {
-    "model": "gemini-2.5-flash",
+    "model": "gemini-flash-latest",
     "model_configuration": {
       "thinking_config": {
         "include_thoughts": true,
@@ -441,7 +446,9 @@ Override defaults in eval config:
 }
 ```
 
-**Note**: User simulation only supports `hallucinations_v1`, `safety_v1`, rubric-based criteria, and `per_turn_user_simulator_quality_v1`. Reference-based criteria (`tool_trajectory_avg_score`, `response_match_score`, `final_response_match_v2`) are not supported with user simulation.
+**Note**: User simulation only supports `hallucinations_v1`, `safety_v1`, rubric-based criteria, and `per_turn_user_simulator_quality_v1`. Reference-based criteria (`tool_trajectory_avg_score`, `response_match_score`, `final_response_match_v2`) are not supported with user simulation. Audio-generation user simulators are supported since 2.6; live/audio evals have public entrypoints since 2.6.
+
+**Official eval samples (2.6+)**: the adk-python repo ships runnable samples for each criterion style — `basic_criteria`, `custom_metric`, `llm_judge_match`, `rubric_criteria`, `test_file_vs_evalset`, `user_simulation`, plus a shared home-automation agent.
 
 ---
 
@@ -479,7 +486,7 @@ ADK can simulate users to test agent conversations without manual interaction:
 from google.adk.evaluation import UserSimulator
 
 simulator = UserSimulator(
-    model="gemini-3-flash-preview",
+    model="gemini-flash-latest",
     user_persona="A customer who wants to book a flight to Tokyo",
 )
 ```

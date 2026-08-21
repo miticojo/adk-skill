@@ -6,6 +6,8 @@ The [Agent2Agent (A2A) Protocol](https://a2a-protocol.org/) is an open standard 
 
 **Status:** Supported in Python and Go (Experimental).
 
+**Protocol v1.0 (spec, Mar 2026):** A2A 1.0 changed wire semantics from 0.3 — enum values are `SCREAMING_SNAKE_CASE`; `protocolVersion` moved into per-interface `supportedInterfaces[]`; Agent Cards can be JWS-signed; multi-tenancy via a `tenant` field; OAuth implicit/password flows removed (PKCE + Device Code added). ADK accepts `a2a-sdk` 1.x since ADK 2.5.
+
 ## When to Use A2A vs Local Sub-Agents
 
 | Criteria | A2A (Remote) | Local Sub-Agents |
@@ -64,7 +66,7 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 
 root_agent = Agent(
     name="math_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="You solve math problems.",
     tools=[solve_equation],
 )
@@ -164,7 +166,7 @@ remote_math = RemoteA2aAgent(
 # Use as a sub-agent in your root agent
 root_agent = Agent(
     name="root_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="""You are a helpful assistant.
     Delegate math questions to math_agent.""",
     sub_agents=[remote_math],
@@ -284,7 +286,7 @@ def check_prime(nums: list[int]) -> str:
 
 root_agent = Agent(
     name="prime_checker",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="You check if numbers are prime using the check_prime tool.",
     tools=[check_prime],
 )
@@ -320,7 +322,7 @@ prime_agent = RemoteA2aAgent(
 
 root_agent = Agent(
     name="root_agent",
-    model="gemini-2.5-flash",
+    model="gemini-flash-latest",
     instruction="""You can roll dice and check if numbers are prime.
     Delegate prime checking tasks to prime_checker.
     1. If asked to roll a die, use roll_die.
@@ -440,6 +442,8 @@ asyncio.run(run_all_tests())  # Single event loop for all A2A tests
 ```
 
 **Experimental status:** ADK's A2A implementation emits `UserWarning` messages about experimental status. The A2A protocol and SDK themselves are stable; only ADK's integration layer is experimental. Suppress with `warnings.filterwarnings("ignore", category=UserWarning)` if needed.
+
+**ADK 2.6 additions:** per-invocation auth headers when fetching agent cards; `to_a2a()` apps can be served under a path prefix; remote task cancellation is honored instead of raising `NotImplementedError`; A2A converters extract metadata symmetrically in both directions.
 
 ---
 

@@ -53,9 +53,27 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 - Install with correct extras: `pip install google-adk` (base) or `pip install google-adk[a2a]` (A2A support)
 - Check for conflicting google packages: `pip list | grep google`
 
+### `ModuleNotFoundError: pyarrow` After Upgrading to 2.7+
+
+**Cause:** 2.7 moved `pyarrow` out of the `[gcp]` extra into `[bigquery-analytics]`.
+
+**Fix:** `pip install "google-adk[bigquery-analytics]"` (or re-add pyarrow explicitly). For supply-chain-safe installs, pin transitive deps with the companion constraints files published per Python version since 2.6.
+
 ---
 
 ## Runtime Errors
+
+### Graph Validation Failed on Workflow Construction
+
+2.5+ validates graphs eagerly. Common errors and fixes:
+
+| Error | Fix |
+|-------|-----|
+| `Schema mismatch on edge X -> Y` | Align the source's `output_schema` with the target's `input_schema`, or drop one side |
+| chat-mode agent after a non-START node | Chat agents need conversation history — set `mode="single_turn"` |
+| Routes on an edge leaving `START` | Move routing to a downstream node |
+| More than one `__DEFAULT__` target from a node | Keep one fallback target per source |
+| Legacy orchestrator (`SequentialAgent` etc.) inside a graph | Compose from agents/functions/dynamic nodes instead |
 
 ### Agent Returns Empty / No Response
 
@@ -225,7 +243,7 @@ Resume via API: `runner.run_async(user_id=..., session_id=..., invocation_id=...
 **Fix:** Add retry options:
 ```python
 root_agent = Agent(
-    model='gemini-2.5-flash',
+    model='gemini-flash-latest',
     generate_content_config=types.GenerateContentConfig(
         http_options=types.HttpOptions(
             retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3),
@@ -238,7 +256,7 @@ root_agent = Agent(
 
 ## Performance Tips
 
-- Use `gemini-3-flash-preview` for most agents, reserve `gemini-3-pro-preview` for complex reasoning
+- Use `gemini-flash-latest` for most agents, reserve `gemini-3.1-pro-preview` for complex reasoning
 - Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
 - Split agents with 5+ tools into focused specialists
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing

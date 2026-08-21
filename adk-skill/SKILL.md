@@ -1,11 +1,11 @@
 ---
 name: adk-skill
-description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, Kotlin, or TypeScript. Use when user says 'build an agent with ADK', 'create a Gemini agent', 'multi-agent pipeline', 'agentic workflow with graphs', 'agent collaboration', 'agent-to-agent protocol', or mentions ADK, google-adk, Workflow, graph-based agent, agent memory service, agent artifacts, dynamic workflows. Do NOT use for LangChain, CrewAI, AutoGen, or non-ADK agent frameworks."
+description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, Kotlin, or TypeScript. Use when user says 'build an agent with ADK', 'create a Gemini agent', 'multi-agent pipeline', 'agentic workflow with graphs', 'agent collaboration', 'agent-to-agent protocol', 'managed agent', or mentions ADK, google-adk, Workflow, graph-based agent, agent memory service, agent artifacts, dynamic workflows, agent routing. Do NOT use for LangChain, CrewAI, AutoGen, or non-ADK agent frameworks."
 license: MIT
-compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.24+, Node 24+). Package: google-adk 2.0 or later. Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var. Graph-based and dynamic workflows require ADK 2.0+."
+compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.25+, Node 24+). Package: google-adk 2.0 or later (content verified against 2.7.x; security floor 1.28.1+/2.0.0 per CVE-2026-4810). Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var. Graph-based and dynamic workflows require ADK 2.0+. Jinja2 templating is an optional dependency."
 metadata:
   author: community
-  version: "2.0"
+  version: "2.1"
   mcp-server: adk-docs
 ---
 
@@ -27,25 +27,27 @@ ADK is Google's open-source framework for building AI agents powered by Gemini m
 8. **Use `output_key` + `output_schema`** for reliable data flow between agents — not free text.
 
 ## Documentation & Resources
-- **ADK Docs**: https://google.github.io/adk-docs/llms.txt
+- **ADK Docs**: https://adk.dev/llms.txt
 - **Official Samples**: https://github.com/google/adk-samples
 - **2.0 Migration Guide**: https://adk.dev/2.0/
 
 ## Supported Languages
 
-| Language | Package | Install | ADK 2.0 |
+| Language | Package | Install | ADK 2.x |
 |----------|---------|---------|---------|
-| Python | `google-adk` | `pip install google-adk` | Yes |
-| Go | `google.golang.org/adk/v2` | `go get google.golang.org/adk/v2` | Yes |
-| Java | `com.google.adk:google-adk` | Maven/Gradle | 1.x |
-| Kotlin | `com.google.adk:google-adk-kotlin` | Gradle | 1.x |
-| TypeScript | `@google/adk` | `npm install @google/adk` | 1.x |
+| Python | `google-adk` | `pip install google-adk` | 2.7 (reference) |
+| Go | `google.golang.org/adk/v2` | `go get google.golang.org/adk/v2` | 2.2 |
+| Java | `com.google.adk:google-adk` | Maven/Gradle | 1.x only |
+| Kotlin | `com.google.adk:google-adk-kotlin-core` | Gradle | 0.8 pre-GA |
+| TypeScript | `@google/adk` | `npm install @google/adk` | 2.0 |
+
+Go and TypeScript also publish parallel 1.x LTS lines (`google.golang.org/adk` / `@google/adk@^1`).
 
 This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns, see [references/multi-language.md](references/multi-language.md).
 
 ## Quick Reference
 
-| Task | ADK 2.0 Approach |
+| Task | ADK 2.x Approach |
 |------|-----------------|
 | Single agent | `LlmAgent` with model, instruction, tools |
 | Graph-based workflow | `Workflow(edges=[...])` with Agent/Function nodes |
@@ -55,6 +57,8 @@ This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns,
 | Parallel execution | `ParallelAgent` or `asyncio.gather(ctx.run_node(...))` |
 | Iterative refinement | `LoopAgent` or `while` loop in dynamic workflow |
 | Agent-as-tool | `AgentTool` for on-demand delegation |
+| Google-managed agent | `ManagedAgent` (Preview, 2.4+) |
+| Agent as MCP server | `agent.to_mcp_server()` (2.5+) |
 | Remote agent (A2A) | `RemoteA2aAgent` + `to_a2a()` |
 | Custom tools | Python functions with type hints + docstrings |
 | OpenAPI tools | `OpenAPIToolset` from OpenAPI spec |
@@ -63,10 +67,8 @@ This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns,
 | Cross-session memory | `MemoryService` + `PreloadMemoryTool` / `LoadMemory` |
 | Binary data persistence | `ArtifactService` (`save_artifact`, `load_artifact`) |
 | MCP integration | `MCPToolset` with connection params |
-| YAML-based agent config | `adk create --type=config my_agent` |
-| Session rewind | `runner.rewind_async()` |
+| YAML agent config / session rewind | `adk create --type=config` / `runner.rewind_async()` |
 | Streaming (Live API) | `LiveRequestQueue` for bidirectional audio/video |
-| Multi-model | Claude, Ollama, LiteLLM, vLLM via model adapters |
 | Testing | `pytest` with `InMemoryRunner` |
 | Evaluation | EvalSet with `.test.json`, `adk eval` CLI |
 
@@ -105,7 +107,7 @@ from google.adk.agents import LlmAgent
 
 root_agent = LlmAgent(
     name="my_agent",
-    model="gemini-3-flash-preview",    # Default in ADK 2.2+
+    # model is optional — built-in default: gemini-3.5-flash
     description="Brief description for agent discovery",
     instruction="Detailed system prompt...",
     tools=[...],
@@ -127,7 +129,7 @@ from google.adk import Workflow, Event
 from google.adk.agents import LlmAgent
 
 classifier = LlmAgent(
-    name="classifier", model="gemini-3-flash-preview",
+    name="classifier", model="gemini-flash-latest",
     instruction="Classify input as 'BUG', 'SUPPORT', or 'LOGISTICS'.",
     output_schema=str,
 )
@@ -200,11 +202,7 @@ root_agent = LlmAgent(
 
 ### Collaboration Modes
 
-| Mode | User Interaction | Control Flow | Parallel | Return to Parent |
-|------|-----------------|-------------|----------|-----------------|
-| `chat` (default) | Full interaction | Agent controls until handoff | No | Manual (transfer) |
-| `task` | Clarification only | Agent controls until complete | No | Automatic (`complete_task`) |
-| `single_turn` | Disallowed | Returns immediately after task | Yes | Automatic (with result) |
+Modes: `chat` (default — controls conversation until handoff), `task` (auto-return via `complete_task`, user clarification only), `single_turn` (no user interaction, parallel-safe, returns result). Full table: [references/workflows.md](references/workflows.md).
 
 **Note:** Do NOT set `mode` on the root agent. It is for sub-agents only. Task-mode agents cannot have sub-agents.
 
@@ -231,7 +229,7 @@ def get_weather(city: str, units: str = "celsius") -> dict:
     return {"temperature": 22, "conditions": "sunny", "humidity": 45}
 
 agent = LlmAgent(
-    name="weather_agent", model="gemini-3-flash-preview",
+    name="weather_agent", model="gemini-flash-latest",
     instruction="Help users check the weather.", tools=[get_weather],
 )
 ```
@@ -257,11 +255,11 @@ def add_to_cart(item: str, quantity: int, tool_context: ToolContext) -> dict:
 from google.adk.tools.agent_tool import AgentTool
 
 specialist = LlmAgent(
-    name="code_reviewer", model="gemini-3-flash-preview",
+    name="code_reviewer", model="gemini-flash-latest",
     instruction="Review code for bugs and best practices.",
 )
 coordinator = LlmAgent(
-    name="coordinator", model="gemini-3-flash-preview",
+    name="coordinator", model="gemini-flash-latest",
     instruction="Coordinate tasks. Use code_reviewer for code reviews.",
     tools=[AgentTool(agent=specialist)],
 )
@@ -305,7 +303,7 @@ from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 memory_service = InMemoryMemoryService()  # Prototyping (or VertexAiMemoryBankService for prod)
 
 agent = LlmAgent(
-    name="memory_agent", model="gemini-3-flash-preview",
+    name="memory_agent", model="gemini-flash-latest",
     instruction="Answer questions using past conversation history.",
     tools=[PreloadMemoryTool()],
 )
@@ -343,7 +341,7 @@ See [references/memory-artifacts.md](references/memory-artifacts.md).
 ---
 ## State Management
 
-State is a shared dictionary across agents, tools, and callbacks. Scopes: `state["key"]` (session), `app:key` (app-wide), `user:key` (user-wide). Pass data between agents via `output_key` + `output_schema`:
+State is a shared dictionary across agents, tools, and callbacks. Scopes: `state["key"]` (session), `app:key` (app-wide), `user:key` (user-wide). Pass data between agents via `output_key` + `output_schema`. Instructions support `{var}` / `{prefix:var}` placeholders; opt-in Jinja2 templates (`use_jinja2=True`, 2.7+, optional dep) add conditionals, loops, and dotted access:
 
 ```python
 researcher = LlmAgent(name="researcher", output_key="findings", output_schema=ResearchOutput, ...)
@@ -385,7 +383,7 @@ class AnalysisResult(BaseModel):
     recommendations: list[str]
 
 agent = LlmAgent(
-    name="analyzer", model="gemini-3-flash-preview",
+    name="analyzer", model="gemini-flash-latest",
     instruction="Analyze the provided data and return structured results.",
     output_schema=AnalysisResult,
     output_key="analysis",
@@ -437,7 +435,7 @@ Define eval cases in `.test.json` files, run with `adk eval`, `pytest`, or web U
 
 ## Model Selection
 
-Default in ADK 2.2+ is `gemini-3-flash-preview`. Use `gemini-3-pro-preview` for complex reasoning. Set explicitly `model="gemini-2.5-flash"` for legacy compatibility. Non-Gemini: Claude, Ollama, LiteLLM, vLLM. Configure via `generate_content_config=types.GenerateContentConfig(temperature=0.2)`.
+Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gemini-flash-latest`; for regional endpoints use a pinned ID (e.g. `gemini-3.6-flash`, or `gemini-3.1-pro-preview` for complex reasoning). Non-Gemini: Claude, Ollama, LiteLLM, vLLM, OCI GenAI; provider-prefixed Gemini IDs also accepted (2.4+). Configure via `generate_content_config=types.GenerateContentConfig(...)` — `temperature`/`top_p`/`top_k` are deprecated on the Gemini API.
 
 ---
 
