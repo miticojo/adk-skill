@@ -45,6 +45,10 @@ Go and TypeScript also publish parallel 1.x LTS lines (`google.golang.org/adk` /
 
 This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns, see [references/multi-language.md](references/multi-language.md).
 
+## Prerequisites
+
+Python 3.10+ with `pip install google-adk`; set `GOOGLE_API_KEY` in `.env` or configure Vertex AI credentials (`GOOGLE_CLOUD_PROJECT`). Other languages: Java 17+, Go 1.25+ (v2), Node 24+. Optional extras: `[a2a]`, `[bigquery-analytics]` (2.7+ split), Jinja2 for templating.
+
 ## Quick Reference
 
 | Task | ADK 2.x Approach |
@@ -468,21 +472,7 @@ See also: [references/workflows.md](references/workflows.md) (graph routing, HIT
 
 ## Decision Guide
 
-**When to use which workflow type:**
-
-```
-Single task, one LLM call? -> LlmAgent
-Deterministic multi-step process? -> Workflow (graph-based)
-Complex branching/iteration? -> Dynamic Workflow (@node)
-Multiple specialists collaborating? -> Collaborative (sub_agents + mode)
-Steps must run in order? -> SequentialAgent or Workflow chain
-Steps are independent? -> ParallelAgent or asyncio.gather
-Need iteration/refinement? -> LoopAgent or while in dynamic
-Need on-demand delegation? -> AgentTool
-Remote agent, different service? -> RemoteA2aAgent (A2A)
-```
-
-**When to use which tool type:**
+Workflow-type selection: see the Quick Reference table above. Tool types:
 
 ```
 Simple function? -> Python function with type hints
@@ -496,3 +486,11 @@ Web search? -> google_search (built-in)
 Cross-session memory? -> PreloadMemoryTool / LoadMemory
 Modular skill package? -> SkillToolset
 ```
+
+## Limitations
+
+Graph workflows: no Live streaming; no legacy orchestrators as nodes; chat-mode agents only from `START`; task-mode-in-graph needs 2.5+ resumability. Full list: [references/workflows.md](references/workflows.md).
+
+## Troubleshooting
+
+Error → cause → fix patterns for setup, runtime, A2A, MCP, sessions, and the 1.x→2.0 migration: see [references/troubleshooting.md](references/troubleshooting.md).
