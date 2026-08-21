@@ -1,0 +1,62 @@
+# SkillSpector baseline — findings listed here are suppressed on future scans.
+# Edit 'reason' fields and add glob 'rules' as needed. See docs/SUPPRESSION.md.
+version: 2
+scanner_version: 2.9.6
+rules: []
+fingerprints:
+- hash: sha256:02a9d4697edb9e887d17c3157073c9c20ea88a0661a8dbcd08e9945c3c389cc1
+  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  file: references/advanced-patterns.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:99ed94e9acae4ba5e00ed69734f3f1993227fd6344b4cff8ae19f574a75ed1c6
+  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  file: references/evaluation.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:3e1f419bd637a8945da5873188f442aaa9d7c33fa3a4547aaa386f1eaafbf945
+  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  file: references/evaluation.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:342ae35afd0e50c7899353f64627ab41411c59cb67295fe99f68376c699bcd6a
+  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:a51a981fba85f73f9473b39c7196fa194c41966d688623e57839edfd688ed833
+  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:1c7b77cc14b9e76d175c8fd5403624d2a8393a715afc4b094ef4f922f66a57c5
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: SKILL.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:9cd9290b96912546899cd27f46d906696438e3f34782c10cc339817ddda1c6ba
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/a2a-protocol.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:e8b9ba0d4215a9ab963d550b420de9c8645723babf4dbb437be48a878d90dac0
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/advanced-patterns.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:620433fdc62f3d049891327f321b0a960c0601f7c4272da30de62925269ba353
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/advanced-patterns.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:07cb9cbdeb7add057b9377f575e908119c6ccddab12d8fda196cc6d4b72a3f71
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:c688066fcffa1af1306a679e96c5f9368954cd0caf24bc651a04166689cafe7e
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:c4908e2d440b2bc9595fef640dab04b4249d0a0d5dc15f0b6590ef5f998096a7
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:2aefd80195cedf0619834c8f4d2c27b170d1aa483bb0b22161e58f4e8abd8936
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)
+- hash: sha256:708a6781aa98b7cb49533e355e1bd1267a6a50cdc0e06da1d9725a6551c19107
+  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  file: references/multi-language.md
+  reason: Accepted finding (auto-generated baseline)

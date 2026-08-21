@@ -1,0 +1,135 @@
+# Skill quality + security gates.
+#
+# PRs: SkillEvaluator Tier-1 validation (agentskills.io schema, PII, license,
+# quality grade), repo-specific structural checks, SkillSpector static security
+# scan against the committed baseline (.skillspector-baseline.yaml).
+# Tags v*: same checks + GitHub Release with the scan reports attached.
+#
+# Tool versions are pinned to release tags — never install from git HEAD here.
+name: release
+
+on:
+  pull_request:
+    paths:
+      - "adk-skill/**"
+      - ".skillspector-baseline.yaml"
+      - ".github/workflows/release.yml"
+  push:
+    tags: ["v*"]
+
+env:
+  SKILLSPECTOR_VERSION: v2.9.6
+  SKILLEVALUATOR_VERSION: v0.1.0
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pinned skill tooling
+        run: |
+          python -m pip install --quiet uv
+          uv tool install --force --python 3.13 \
+            "skillevaluator[all] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_VERSION}"
+          uv tool install --force \
+            "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@${SKILLSPECTOR_VERSION}"
+
+      - name: SkillEvaluator Tier-1 validation
+        run: |
+          skillevaluator validate adk-skill \
+            --checks schema,pii,license,quality,unicode,lint \
+            --no-dedup
+
+      - name: Structural checks (line budget, links, frontmatter)
+        run: |
+          python3 << 'EOF'
+          import yaml, re, os, glob, sys
+
+          fails = []
+          t = open('adk-skill/SKILL.md').read()
+          fm = re.match(r'^---\n(.*?)\n---\n', t, re.S).group(1)
+          d = yaml.safe_load(fm)
+
+          if d['name'] != 'adk-skill':
+              fails.append('frontmatter name must match directory')
+          lines = t.count('\n')
+          if lines >= 500:
+              fails.append(f'SKILL.md is {lines} lines (spec budget <500)')
+          if len(d['description']) > 1024:
+              fails.append('description exceeds 1024 chars')
+          if len(d['compatibility']) > 500:
+              fails.append('compatibility exceeds 500 chars')
+
+          refs = 'adk-skill/references/'
+          for link in re.findall(r'\]\((references/[^)]+)\)', t):
+              if not os.path.exists(os.path.join('adk-skill', link)):
+                  fails.append(f'broken reference link: {link}')
+          for f in glob.glob(refs + '*.md'):
+              body = open(f).read()
+              if re.search(r'\]\((?:references/|\./)[^)]+\.md', body):
+                  fails.append(f'chained references not allowed (spec): {f}')
+              if re.search(r'\bcurrently\b|\bas of 20\d\d\b', body, re.I):
+                  fails.append(f'time-sensitive language in {f}')
+
+          for f in fails:
+              print(f'FAIL: {f}')
+          sys.exit(1 if fails else 0)
+          EOF
+
+      - name: SkillSpector security scan (static, baseline-suppressed)
+        run: |
+          mkdir -p reports
+          set +e
+          skillspector scan adk-skill/ --no-llm \
+            --baseline .skillspector-baseline.yaml \
+            --format json -o reports/skillspector.json
+          code=$?
+          set -e
+          # Exit 2 = scanner error; 1 = DO_NOT_INSTALL. CAUTION still passes
+          # the gate but keeps a visible score in the attached report.
+          if [ "$code" -ne 0 ]; then
+            echo "SkillSpector gate failed (exit $code)"
+            exit "$code"
+          fi
+          rec=$(python3 -c "import json;print(json.load(open('reports/skillspector.json'))['risk_assessment']['recommendation'])")
+          score=$(python3 -c "import json;r=json.load(open('reports/skillspector.json'))['risk_assessment'];print(r['score'],r['severity'])")
+          echo "SkillSpector verdict: $rec ($score)"
+          [ "$rec" != "DO_NOT_INSTALL" ] || { echo "DO_NOT_INSTALL blocks this build"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skill-reports
+          path: reports/
+          if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          name: skill-reports
+          path: reports
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            reports/* || gh release upload "${GITHUB_REF_NAME}" reports/*
