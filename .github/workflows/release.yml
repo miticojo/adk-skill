@@ -50,6 +50,7 @@ jobs:
 
       - name: Structural checks (line budget, links, frontmatter)
         run: |
+          python -m pip install --quiet pyyaml
           python3 << 'EOF'
           import yaml, re, os, glob, sys
 
