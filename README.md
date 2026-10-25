@@ -6,6 +6,8 @@ An [Agent Skill](https://agentskills.io) for building single-agent and multi-age
 
 This skill gives your coding agent deep knowledge of ADK architecture, patterns, and best practices — covering workflow types, tools, callbacks, state management, memory, artifacts, multi-agent orchestration, testing, evaluation, and deployment across all supported languages.
 
+See [release notes](CHANGELOG.md) for the proposed 2.2.0 release, compatibility changes and verification limits. Contributor and agent instructions live in [AGENTS.md](AGENTS.md); the update's phase record is in [tasks.md](tasks.md).
+
 ## What's Included
 
 ```
@@ -99,23 +101,14 @@ Just copy the `adk-skill/` folder wherever your agent reads skills from. The onl
 
 ## When Does It Activate?
 
-The skill activates when you mention:
-- **ADK**, **google-adk**, **Google Agent Development Kit**
-- Building **AI agents** with **Gemini** in **Python, Java, Go, Kotlin, or TypeScript**
-- **Graph-based workflows**, **dynamic workflows**, **collaborative agents**
-- **Multi-agent** architectures or **agent orchestration**
-- **Sequential**, **parallel**, or **loop** workflows
-- Agent **tools**, **callbacks**, **state management**
-- **Agent memory**, **cross-session memory**, **memory service**
-- **Artifacts**, **binary data persistence**, **LoadArtifactsTool**
-- **OpenAPI tools**, **tool authentication**, **tool confirmations**
-- **Agent Config**, **YAML-based agents**, **Visual Builder**
-- **Deploying agents**, **writing agent tests**, **agent evaluation**
-- **A2A protocol**, **remote agents**, **agent-to-agent** communication
-- **Managed agents**, **ambient agents**, **event-triggered agents**
-- Integrating **MCP tools**, serving an agent **as an MCP server**, or **Agent Skills** with ADK
-- **Streaming**, **Live API**, **AG-UI**, **plugins**
-- **ADK 1.x to 2.0 migration**
+Use the skill for **Google ADK / google-adk projects** in Python, Java, Go, Kotlin or TypeScript:
+
+- Build or migrate ADK agents, graph/dynamic workflows and collaborative teams.
+- Add ADK tools, callbacks, MCP/A2A integrations, state, memory or artifacts.
+- Evaluate, test, deploy or debug ADK applications, including approval and recovery flows.
+- Configure ADK skills, models, streaming or optional integrations.
+
+Standalone Gemini API tasks and LangChain, CrewAI or AutoGen projects are outside this skill's activation scope.
 
 ## Topics Covered
 
@@ -132,7 +125,7 @@ The skill activates when you mention:
 | State & Sessions | Session state, scopes (`app:`, `user:`), context compaction, session rewind |
 | Output | Pydantic `output_schema` + `output_key` for structured data |
 | HITL | `RequestInput` events, `rerun_on_resume`, dynamic workflow patterns |
-| Testing | `InMemoryRunner` with pytest |
+| Testing | ADK runner examples; maintained offline regressions with Python `unittest` |
 | Evaluation | Quality + efficiency metrics, `RubricBasedMultiTurnTrajectoryEvaluator`, user simulation, `GEPARootAgentOptimizer`, CLI, web UI |
 | Design Patterns | 9 patterns (graph, dynamic, collaborative, fan-out/fan-in, reflection, routing, fallback, guardrails, tiering) |
 | A2A Protocol | Expose via `to_a2a()`, consume via `RemoteA2aAgent`, agent cards, Python + Go |
@@ -184,6 +177,8 @@ Every skill/test PR and release runs through automated gates ([workflow](.github
 | Executable Python examples and schemas | `unittest`, ADK 2.13.0 | 23 tests pass |
 
 **Releases**: pushing a tag (`v*`) runs the same gates and publishes a GitHub Release with the scan/quality reports attached (see [v2.1.0](https://github.com/miticojo/adk-skill/releases/tag/v2.1.0)). Accepted scanner false positives are recorded in `.skillspector-baseline.yaml`.
+
+Human-written release notes live in [CHANGELOG.md](CHANGELOG.md). Version 2.2.0 stays marked **Unreleased** until publication; a branch push or pull request does not publish it. The tag workflow generates GitHub release notes automatically. Merge and tag publication are separate maintainer actions.
 
 **Verify a release yourself** — both tools are deterministic and keyless:
 

@@ -8,8 +8,6 @@ tests/
 # Claude Code project memory
 .claude/
 
-CLAUDE.md
-
 .DS_Store
 reports/
 
