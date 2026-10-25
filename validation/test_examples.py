@@ -57,6 +57,67 @@ class ToolExamples(unittest.TestCase):
         )
         self.assertNotIn("offline-test-key", str(ns["get_customer_data"]("CUST-1", credential)))
 
+    def test_model_consultation_has_explicit_budgets(self):
+        agent = example("references/tools-reference.md", "## Model Consultation")["agent"]
+        advisor = agent.tools[0]
+        self.assertEqual(advisor.max_uses, 1)
+        self.assertEqual(advisor.session_max_uses, 3)
+
+
+class IntegrationExamples(unittest.IsolatedAsyncioTestCase):
+    async def test_skill_load_unload_and_catalog(self):
+        with patch.dict(os.environ, {"ADK_ENABLE_SKILL_LIFECYCLE": "1"}):
+            ns = example("references/tools-reference.md", "### Discovery and Lifecycle")
+            toolset = ns["skill_tools"]
+            self.addAsyncCleanup(toolset.close)
+            sessions = InMemorySessionService()
+            session = await sessions.create_session(app_name="test", user_id="user")
+            from google.adk.agents import LlmAgent
+            context = Context(InvocationContext(
+                session_service=sessions, session=session, invocation_id="skill-test",
+                agent=LlmAgent(name="skill_agent"),
+            ))
+            self.assertEqual(toolset.list_active_skills(context), [])
+            self.assertTrue(await toolset.load_skill(context, "greeting-skill"))
+            self.assertEqual(toolset.list_active_skills(context), ["greeting-skill"])
+            self.assertTrue(toolset.unload_skill(context, "greeting-skill"))
+            self.assertEqual(toolset.list_active_skills(context), [])
+
+    async def test_a2a_server_and_native_task_proxy_construct(self):
+        server = example("references/a2a-protocol.md", "## Expose an Agent")
+        app = server["a2a_app"]
+        async with app.router.lifespan_context(app):
+            self.assertTrue(app.routes)
+        proxy = example("references/a2a-protocol.md", "## Native Task Delegation")
+        self.assertEqual(proxy["remote_math"].mode, "task")
+
+    async def test_model_failover_preserves_request(self):
+        from google.adk.models import BaseLlm, LlmResponse
+        from google.adk.models.llm_request import LlmRequest
+        from google.genai.errors import ServerError
+
+        class FailingLlm(BaseLlm):
+            async def generate_content_async(self, llm_request, stream=False):
+                llm_request.contents.clear()
+                raise ServerError(503, {"error": {"message": "offline failure"}})
+                yield
+
+        class BackupLlm(BaseLlm):
+            async def generate_content_async(self, llm_request, stream=False):
+                if not llm_request.contents:
+                    raise AssertionError("Fallback lost the original request")
+                yield LlmResponse(content=types.Content(
+                    role="model", parts=[types.Part.from_text(text="backup response")],
+                ))
+
+        ns = example("references/design-patterns.md", "### Model Failover")
+        fallback = ns["FallbackModel"](models=[FailingLlm(model="primary"), BackupLlm(model="backup")])
+        request = LlmRequest(contents=[types.Content(
+            role="user", parts=[types.Part.from_text(text="hello")],
+        )])
+        responses = [r async for r in fallback.generate_content_async(request)]
+        self.assertEqual(responses[-1].content.parts[0].text, "backup response")
+
 
 class ArtifactExamples(unittest.IsolatedAsyncioTestCase):
     async def test_save_load_list_and_missing_file(self):

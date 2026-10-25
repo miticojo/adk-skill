@@ -61,6 +61,8 @@ Python 3.11+ with `pip install "google-adk==2.13.0"`; set `GOOGLE_API_KEY` in `.
 | Parallel execution | `ParallelAgent` or `asyncio.gather(ctx.run_node(...))` |
 | Iterative refinement | `LoopAgent` or `while` loop in dynamic workflow |
 | Agent-as-tool | `AgentTool` for on-demand delegation |
+| Inline specialist with pause/resume | `sub_agents` with `mode="single_turn"` |
+| Backup models / advisor | Experimental `FallbackModel` / `ModelConsultTool` |
 | Google-managed agent | `ManagedAgent` (Preview, 2.4+) |
 | Agent as MCP server | `agent.to_mcp_server()` (2.5+) |
 | Remote agent (A2A) | `RemoteA2aAgent` + `to_a2a()` |
@@ -70,7 +72,7 @@ Python 3.11+ with `pip install "google-adk==2.13.0"`; set `GOOGLE_API_KEY` in `.
 | State management | `callback_context.state` and `tool_context.state` |
 | Cross-session memory | `MemoryService` + `PreloadMemoryTool` / `LoadMemory` |
 | Binary data persistence | `ArtifactService` (`save_artifact`, `load_artifact`) |
-| MCP integration | `MCPToolset` with connection params |
+| MCP integration | `MCPToolset`; SDK 2.x modern wire path is opt-in |
 | YAML agent config / session rewind | `adk create --type=config` / `runner.rewind_async()` |
 | Streaming (Live API) | `LiveRequestQueue` for bidirectional audio/video |
 | Testing | `pytest` with `InMemoryRunner` |
@@ -285,7 +287,7 @@ mcp_toolset = MCPToolset(
 )
 ```
 
-For advanced tool patterns (FunctionTool, ToolboxToolset, tool auth, tool confirmations, LoadArtifactsTool), see [references/tools-reference.md](references/tools-reference.md).
+For tool auth, confirmations, MCP, stable `SkillToolset`, experimental skill lifecycle, script artifacts and advisor budgets, see [references/tools-reference.md](references/tools-reference.md).
 
 ---
 ## Memory & Artifacts
@@ -445,7 +447,7 @@ Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gem
 | Fan-out / Fan-in | Independent parallel tasks | `ParallelAgent` or `asyncio.gather` |
 | Reflection loop | Quality > speed | `LoopAgent` or `while` in dynamic workflow |
 | Dynamic routing | Input-dependent handler selection | Router function in `Workflow` edges |
-| Layered fallback | Graceful error recovery | `SequentialAgent`: primary -> fallback |
+| Model failover | Eligible model errors | Experimental `FallbackModel`; explicit recovery for tools |
 | Guardrailed agent | Safety/compliance enforced | `before_model_callback` + `before_tool_callback` |
 | Resource tiering | Cost optimization | Different `model` per agent |
 
