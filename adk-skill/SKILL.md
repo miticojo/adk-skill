@@ -315,7 +315,7 @@ runner = Runner(
 )
 ```
 
-Three backends: `InMemoryMemoryService`, `VertexAiMemoryBankService`, `VertexAiRagMemoryService`. See [references/memory-artifacts.md](references/memory-artifacts.md).
+Backends include in-memory, SQLite, Vertex Memory Bank/RAG and experimental MongoDB. Optional mutation APIs vary by backend. See [references/memory-artifacts.md](references/memory-artifacts.md).
 
 ### Artifacts (Binary Data)
 

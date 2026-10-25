@@ -1,5 +1,7 @@
 # ADK Evaluation
 
+Python API target: **google-adk 2.13.0**. Install evaluation dependencies with `pip install "google-adk[eval]==2.13.0"`. LLM judges and user simulation make provider calls; schema and deterministic evaluator checks can run offline.
+
 ## Why Evaluate
 
 LLM agents are non-deterministic. Traditional pass/fail assertions are insufficient. Evaluation must cover:
@@ -16,7 +18,7 @@ Automating evaluations pays off quickly. If you intend to progress beyond protot
 
 ## Eval Data Format
 
-ADK uses Pydantic-backed schemas: `EvalSet` containing `EvalCase`s, each with a `conversation` of `Invocation`s. Files use `.test.json` (unit tests) or `.evalset.json` (integration tests) suffix.
+ADK uses Pydantic-backed schemas: `EvalSet` containing `EvalCase`s, each with a `conversation` of `Invocation`s. The CLI accepts EvalSet files such as `.evalset.json`; `AgentEvaluator` also loads `.test.json` datasets. Choose fixtures by test scope rather than assuming a suffix makes a test deterministic or offline.
 
 ### Single-Turn Eval Case
 
@@ -133,7 +135,7 @@ Multiple invocations in one eval case test conversational flow:
 
 ## Evaluation Criteria
 
-ADK provides 8 built-in metrics:
+Built-in quality criteria include:
 
 | Criterion | Type | Reference-Based | Requires Rubrics | LLM Judge | User Sim |
 |-----------|------|:-:|:-:|:-:|:-:|
@@ -169,7 +171,7 @@ Compares actual tool calls against expected. Three match types:
 }
 ```
 
-Shorthand for EXACT match: `"tool_trajectory_avg_score": 1.0`
+Shorthand for EXACT match: `"tool_trajectory_avg_score": 1.0`. In 2.9+ set `ignore_args: true` in the trajectory criterion to compare tool names while ignoring arguments; keep the default `false` when argument correctness matters.
 
 ### Response Match (ROUGE-1)
 
@@ -295,6 +297,27 @@ Requires Google Cloud Project (`GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION
 }
 ```
 
+### Efficiency Metrics (2.10+, duration breakdown in 2.13)
+
+These four metrics report automatically alongside quality metrics in CLI/`AgentEvaluator` runs. They require no judge calls or expected response:
+
+| Metric | Reported value |
+|--------|----------------|
+| `tool_call_count_v1` | Function/tool invocations per turn |
+| `inference_call_count_v1` | Model calls per turn |
+| `token_usage_v1` | Total tokens with input/output, cached, tool-use, and reasoning breakdown |
+| `invocation_duration_v1` | Turn wall-clock seconds; `duration_details` splits model, tool, and framework time |
+
+Their status is `INFORMATIONAL`: they never pass/fail an eval case, and configuring a threshold raises `ValueError`. Use quality criteria for pass/fail gates. Each metric aggregates the entire invocation, including sub-agents; multi-turn case scores are per-turn averages, not conversation totals.
+
+Timing partitions overlapping intervals rather than summing parallel tasks: tool time excludes nested model waits, and framework time is the residual. Missing metadata/timing is `n/a`, not zero. Compare several runs for latency changes. Live-streaming usage requires care because multiple chunks may report usage for one call.
+
+### Custom Metrics and Model Adapters
+
+`EvalConfig.custom_metrics` (2.8+) maps criterion names to importable Python metric functions through `code_config.name`. Register only trusted local implementations; imported metric code runs in the evaluator process. Keep each metric's threshold and `MetricInfo` consistent with its score range.
+
+Judges and the LLM-backed simulator run through ADK `BaseLlm` adapters. In 2.13 the serialized `JudgeModelOptions.judge_model` and simulator `model` fields are still string IDs; use `LLMRegistry` registration for a custom adapter rather than putting a Python object into JSON. Set `judge_model_options.parallelism_limit` deliberately to bound concurrent judge calls. Vertex rubric results now expose verdicts and explanations for diagnosis.
+
 ---
 
 ## Eval Config File
@@ -369,7 +392,7 @@ async def test_eval_directory():
     )
 ```
 
-2.7+ adds optional eval-result persistence to `AgentEvaluator` and compatibility with pre-loaded artifacts.
+Optional result persistence and pre-loaded artifacts are supported. In 2.10+, `evaluate` and `evaluate_eval_set` raise `ValueError` if no cases are evaluated: check selected IDs and dataset discovery instead of treating an empty run as success.
 
 ### Method 3: Web UI (`adk web`)
 
@@ -434,6 +457,7 @@ Override defaults in eval config:
     "safety_v1": {"threshold": 0.8}
   },
   "user_simulator_config": {
+    "type": "llm_backed",
     "model": "gemini-flash-latest",
     "model_configuration": {
       "thinking_config": {
@@ -456,10 +480,10 @@ Override defaults in eval config:
 
 | Language | Eval Support | CLI Command | Notes |
 |----------|:---:|-------------|-------|
-| Python | Full | `adk eval` | 8 metrics, pytest, web UI, user simulation |
+| Python | Full | `adk eval` | Quality + efficiency metrics, pytest, web UI, user simulation |
 | TypeScript | Partial | `npx adk eval` | Same `.test.json` format, same CLI flags |
-| Java | Not yet | — | Coming soon |
-| Go | Not yet | — | Coming soon |
+| Java | Separate SDK | — | Verify native tooling; Python commands do not apply |
+| Go | Separate SDK | — | Verify native tooling; Python commands do not apply |
 
 TypeScript uses the same eval data format (`.test.json`, `.evalset.json`) and the same `test_config.json` criteria. Run with:
 
@@ -476,20 +500,11 @@ npx adk eval \
 
 ### RubricBasedMultiTurnTrajectoryEvaluator
 
-Evaluates entire multi-turn conversation trajectories against rubrics, scoring agent behavior across multiple interactions rather than single responses. Useful for evaluating agent consistency, task completion, and user satisfaction over a full conversation.
+Use `rubric_based_multi_turn_trajectory_quality_v1` for rubric-based scoring across a complete conversation. Additional Vertex-backed criteria include `multi_turn_task_success_v1`, `multi_turn_trajectory_quality_v1`, and `multi_turn_tool_use_quality_v1`; they require the evaluation service and its credentials. Choose these for task completion and cross-turn behavior rather than judging only the final response.
 
 ### User Simulation
 
-ADK can simulate users to test agent conversations without manual interaction:
-
-```python
-from google.adk.evaluation import UserSimulator
-
-simulator = UserSimulator(
-    model="gemini-flash-latest",
-    user_persona="A customer who wants to book a flight to Tokyo",
-)
-```
+Use the `ConversationScenario` plus typed `LlmBackedUserSimulatorConfig` shown above. `UserSimulator` is an abstract interface under `google.adk.evaluation.simulation.user_simulator`, not a concrete class accepting `model` and `user_persona`. Put a persona in the conversation scenario when needed.
 
 ### GEPARootAgentOptimizer (v2.3+)
 
@@ -522,8 +537,16 @@ The `user_simulator_config` can now be exposed in `generate_responses` for eval 
 3. **Cover edge cases** — Empty inputs, missing parameters, error conditions, multi-tool sequences.
 4. **Use rubrics for subjective quality** — When "correct" has multiple valid forms, define rubrics instead of rigid references.
 5. **Layer metrics** — Combine `tool_trajectory_avg_score` (fast, deterministic) with `hallucinations_v1` (deeper quality) for comprehensive coverage.
-6. **Keep `.test.json` for unit tests** — Fast, single-session, run on every change.
+6. **Keep deterministic checks separate** — Mock provider calls for offline tests; run model-backed `.test.json` evaluations with explicit credentials and budgets.
 7. **Use `.evalset.json` for integration tests** — Multi-session, complex flows, run less frequently.
 8. **Use web UI to bootstrap eval data** — Interact with the agent, save sessions as eval cases, then edit to refine.
 9. **Add eval config to source control** — `test_config.json` alongside eval data for reproducibility.
 10. **Run user simulation for conversational agents** — Fixed prompts can't cover dynamic multi-turn interactions.
+
+
+## Tagged API Sources
+
+- [ADK 2.13 metric schemas](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/evaluation/eval_metrics.py)
+- [Efficiency evaluators and duration accounting](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/evaluation/_efficiency_evaluators.py)
+- [EvalConfig and custom metrics](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/evaluation/eval_config.py)
+- [Judge model resolution](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/evaluation/llm_as_judge.py) and [user simulator configuration](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/evaluation/simulation/llm_backed_user_simulator.py)

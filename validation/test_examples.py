@@ -9,6 +9,7 @@ import asyncio
 import os
 from pathlib import Path
 import re
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -135,6 +136,29 @@ class ArtifactExamples(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metadata, {"mime_type": "text/plain", "size": len(b"Report ready\n")})
         self.assertEqual(await ns["load_latest_report"]("missing.txt", context),
                          {"error": "missing.txt not found"})
+
+    async def test_sqlite_memory_survives_reopen_and_is_scoped(self):
+        from google.adk.sessions import Session
+        from google.adk.events import Event
+        ns = example("references/memory-artifacts.md", "### Persistent Local Memory")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "memory.db"
+            memory = ns["SqliteMemoryService"](db_path=path)
+            session = Session(id="one", app_name="test", user_id="alice", events=[Event(
+                author="user", content=types.Content(role="user", parts=[types.Part.from_text(text="I like astronomy")]),
+            )])
+            try:
+                await memory.add_session_to_memory(session)
+            finally:
+                await memory.close()
+            memory = ns["SqliteMemoryService"](db_path=path)
+            try:
+                found = await memory.search_memory(app_name="test", user_id="alice", query="astronomy")
+                self.assertTrue(found.memories)
+                other = await memory.search_memory(app_name="test", user_id="bob", query="astronomy")
+                self.assertEqual(other.memories, [])
+            finally:
+                await memory.close()
 
 
 class WorkflowExamples(unittest.IsolatedAsyncioTestCase):
