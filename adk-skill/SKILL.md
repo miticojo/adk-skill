@@ -2,7 +2,7 @@
 name: adk-skill
 description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, Kotlin, or TypeScript. Use when user says 'build an agent with ADK', 'create a Gemini agent', 'multi-agent pipeline', 'agentic workflow with graphs', 'agent collaboration', 'agent-to-agent protocol', 'managed agent', or mentions ADK, google-adk, Workflow, graph-based agent, agent memory service, agent artifacts, dynamic workflows, agent routing. Do NOT use for LangChain, CrewAI, AutoGen, or non-ADK agent frameworks."
 license: MIT
-compatibility: "Requires Python 3.10+ (or Java 17+, Go 1.25+, Node 24+). Package: google-adk 2.0 or later (content verified against 2.7.x; security floor 1.28.1+/2.0.0 per CVE-2026-4810). Requires GOOGLE_API_KEY or GOOGLE_CLOUD_PROJECT env var. Graph-based and dynamic workflows require ADK 2.0+. Jinja2 templating is an optional dependency."
+compatibility: "Python examples verified with google-adk 2.13.0 and Python 3.11+. Other SDKs: Java 17+, Go 1.26.6+ for ADK v2.6, Node 24+. Requires Gemini API credentials or configured Google Cloud authentication for model calls. Optional integrations require package extras. Older ADK versions may lack the APIs shown here."
 metadata:
   author: Giorgio <miticojo@gmail.com>
   version: "2.1"
@@ -47,7 +47,7 @@ This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns,
 
 ## Prerequisites
 
-Python 3.10+ with `pip install google-adk`; set `GOOGLE_API_KEY` in `.env` or configure Vertex AI credentials (`GOOGLE_CLOUD_PROJECT`). Other languages: Java 17+, Go 1.25+ (v2), Node 24+. Optional extras: `[a2a]`, `[bigquery-analytics]` (2.7+ split), Jinja2 for templating.
+Python 3.11+ with `pip install "google-adk==2.13.0"`; set `GOOGLE_API_KEY` in `.env` or configure Google Cloud authentication. Other languages: Java 17+, Go 1.26.6+ (ADK v2.6), Node 24+. Install only needed extras, e.g. `[a2a]`, `[openai]`, `[mongodb]`, `[eval]`, `[bigquery-analytics]`; Jinja2 is optional.
 
 ## Quick Reference
 
@@ -335,9 +335,9 @@ runner = Runner(
     session_service=session_service,
     artifact_service=artifact_service,
 )
-# In tools: tool_context.save_artifact(filename, part)
-#            tool_context.load_artifact(filename)
-#            tool_context.list_artifacts()
+# In async tools: await tool_context.save_artifact(filename, part)
+#                 await tool_context.load_artifact(filename)
+#                 await tool_context.list_artifacts()
 ```
 
 See [references/memory-artifacts.md](references/memory-artifacts.md).
@@ -349,7 +349,7 @@ State is a shared dictionary across agents, tools, and callbacks. Scopes: `state
 
 ```python
 researcher = LlmAgent(name="researcher", output_key="findings", output_schema=ResearchOutput, ...)
-writer = LlmAgent(name="writer", instruction="Write report based on state['findings'].", ...)
+writer = LlmAgent(name="writer", instruction="Write a report based on {findings}.", ...)
 pipeline = SequentialAgent(name="pipeline", sub_agents=[researcher, writer])
 ```
 
@@ -361,7 +361,7 @@ Callbacks intercept the agent lifecycle. Return `None` to proceed, return a valu
 | Callback | Signature | Use Case |
 |----------|-----------|----------|
 | `before_agent_callback` | `(CallbackContext)` | Initialize state |
-| `before_tool_callback` | `(BaseTool, dict, CallbackContext) -> dict\|None` | Validate inputs |
+| `before_tool_callback` | `(BaseTool, dict, ToolContext) -> dict\|None` | Validate inputs |
 | `after_tool_callback` | `(BaseTool, dict, ToolContext, dict) -> dict\|None` | Post-process results |
 | `before_model_callback` | `(CallbackContext, LlmRequest)` | Rate limit, safety |
 
@@ -428,7 +428,11 @@ async def test_agent():
         user_id="test_user", session_id=session.id, new_message=content,
     ):
         events.append(event)
-    assert "expected" in events[-1].content.parts[0].text.lower()
+    text = " ".join(
+        part.text for event in events if event.is_final_response() and event.content
+        for part in (event.content.parts or []) if part.text and not part.thought
+    )
+    assert "expected" in text.lower()
 ```
 
 ### Evaluation

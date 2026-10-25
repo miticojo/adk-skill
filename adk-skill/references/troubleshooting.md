@@ -49,7 +49,7 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 **Symptom:** `ImportError: cannot import name 'Agent' from 'google.adk'`
 
 **Fixes:**
-- Ensure Python 3.10+: `python --version`
+- Ensure Python 3.11+ for ADK 2.12+: `python --version`
 - Install with correct extras: `pip install google-adk` (base) or `pip install google-adk[a2a]` (A2A support)
 - Check for conflicting google packages: `pip list | grep google`
 
@@ -107,7 +107,7 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 **Rules:**
 - `before_tool_callback`: Return `None` to proceed, return `dict` to skip tool with that response.
-- `before_model_callback`: Return `None` to proceed, return `types.Content` to skip model call.
+- `before_model_callback`: Return `None` to proceed, return `LlmResponse(content=types.Content(...))` to skip the model call (`from google.adk.models import LlmResponse`).
 - `before_agent_callback`: Return `None` to proceed, return `types.Content` to skip agent entirely.
 
 ---
@@ -130,7 +130,7 @@ The base `google-adk` package does not include A2A dependencies (httpx, a2a-sdk,
 
 **Checklist:**
 1. Remote agent server is running (`adk api_server` or `to_a2a()` app started)
-2. Agent card URL is correct (default: `http://localhost:8000/.well-known/agent.json`)
+2. Agent card URL is correct (default: `http://localhost:8000/.well-known/agent-card.json`)
 3. No firewall blocking the port
 4. Remote agent's `root_agent` is properly defined
 
@@ -169,7 +169,7 @@ def test_a2a():
 **Fixes:**
 - Verify MCP server starts independently: run the command from `StdioServerParameters` manually
 - Check for missing environment variables the MCP server needs
-- Use `SseConnectionParams` instead of `StdioConnectionParams` for remote MCP servers
+- Use `StreamableHTTPConnectionParams` for remote MCP servers; use SSE only for servers that require the legacy transport
 
 ---
 
@@ -180,7 +180,7 @@ def test_a2a():
 **Symptom:** Tests pass locally but assertions fail on event content.
 
 **Tips:**
-1. Always check the last event for final response: `events[-1].content.parts[0].text`
+1. Filter with `event.is_final_response()`, guard missing content/parts, and collect non-thought text parts. The last event may contain only metadata or a tool result.
 2. Use `event.author` to filter events by agent name
 3. For multi-agent tests, collect all events and filter by author
 4. Use `@pytest.mark.asyncio` and `async def test_*` for async runner tests

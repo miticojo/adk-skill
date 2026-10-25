@@ -5,15 +5,28 @@
 When you need more control over tool creation:
 
 ```python
+import math
+from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 
-def calculate(expression: str) -> str:
-    """Evaluate a mathematical expression."""
-    return str(eval(expression))
+def calculate(left: float, right: float) -> dict[str, float]:
+    """Add two finite numbers.
+
+    Args:
+        left: First number.
+        right: Second number.
+    """
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool)
+               and math.isfinite(value) for value in (left, right)):
+        raise ValueError("Both operands must be finite numbers")
+    result = left + right
+    if not math.isfinite(result):
+        raise ValueError("Result must be finite")
+    return {"result": result}
 
 calc_tool = FunctionTool(func=calculate)
 
-agent = Agent(
+agent = LlmAgent(
     name="calculator",
     tools=[calc_tool],
 )
@@ -295,7 +308,7 @@ def check_job_status(job_id: str) -> dict:
 1. **Clear docstrings**: The docstring becomes the tool description for the LLM
 2. **Type hints**: All parameters must have type hints
 3. **Return useful data**: Return structured dicts, not raw strings
-4. **Handle errors gracefully**: Return error info, don't raise exceptions (but allow standard exceptions to propagate so ADK 2.0 auto-retries work)
+4. **Distinguish failures**: Return structured results for expected domain errors; raise transient failures when a configured retry policy should retry them. Retried operations must be idempotent.
 5. **Keep tools focused**: One tool = one action
 6. **Use ToolContext for state**: Don't use global variables
 7. **Never catch `BaseException`**: It traps `NodeInterruptedError`, breaking HITL pause/resume
@@ -327,19 +340,29 @@ def get_data(id):
 Configure authentication for custom tools (API keys, OAuth):
 
 ```python
-from google.adk.tools import FunctionTool
-from google.adk.auth import AuthConfig, APIKeyAuth
+import os
+from fastapi.openapi.models import APIKey, APIKeyIn
+from google.adk.auth.auth_credential import AuthCredential, AuthCredentialTypes
+from google.adk.auth.auth_tool import AuthConfig
+from google.adk.tools.authenticated_function_tool import AuthenticatedFunctionTool
 
-def get_customer_data(customer_id: str) -> dict:
-    """Fetch customer data from CRM."""
-    ...
+def get_customer_data(customer_id: str, credential: AuthCredential) -> dict:
+    """Prepare an authenticated CRM request for a customer.
+
+    Args:
+        customer_id: Customer identifier.
+    """
+    # Use credential.api_key in your HTTP client's header; never return it.
+    return {"customer_id": customer_id, "status": "ready"}
 
 # Tool with API key auth
-tool = FunctionTool(
+tool = AuthenticatedFunctionTool(
     func=get_customer_data,
     auth_config=AuthConfig(
-        auth_scheme=APIKeyAuth(header_name="X-API-Key"),
-        auth_credential=lambda: os.environ["CRM_API_KEY"],
+        auth_scheme=APIKey(**{"in": APIKeyIn.header}, name="X-API-Key"),
+        raw_auth_credential=AuthCredential(
+            auth_type=AuthCredentialTypes.API_KEY, api_key=os.environ["CRM_API_KEY"],
+        ),
     ),
 )
 ```

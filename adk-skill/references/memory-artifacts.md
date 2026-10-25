@@ -136,23 +136,28 @@ runner = Runner(
 
 ```python
 import google.genai.types as types
+from google.adk.tools import ToolContext
 
 # In a tool:
-def save_report(filename: str, tool_context: ToolContext) -> str:
-    pdf_bytes = generate_pdf()
-    artifact = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-    version = tool_context.save_artifact(filename, artifact)
+async def save_report(filename: str, tool_context: ToolContext) -> str:
+    """Save a small UTF-8 report as a versioned artifact."""
+    artifact = types.Part.from_bytes(data=b"Report ready\n", mime_type="text/plain")
+    version = await tool_context.save_artifact(filename, artifact)
     return f"Saved {filename} (version {version})"
 
-def load_latest_report(filename: str, tool_context: ToolContext) -> dict:
-    artifact = tool_context.load_artifact(filename)  # Latest version
-    # artifact = tool_context.load_artifact(filename, version=2)  # Specific version
+async def load_latest_report(filename: str, tool_context: ToolContext) -> dict:
+    """Read the latest report's binary metadata."""
+    artifact = await tool_context.load_artifact(filename)  # Latest version
+    # artifact = await tool_context.load_artifact(filename, version=2)
     if artifact is None:
         return {"error": f"{filename} not found"}
-    return {"mime_type": artifact.inline_data.mime_type, "size": len(artifact.inline_data.data)}
+    if artifact.inline_data is None:
+        return {"error": "Artifact contains a URI instead of inline bytes"}
+    return {"mime_type": artifact.inline_data.mime_type, "size": len(artifact.inline_data.data or b"")}
 
-def list_files(tool_context: ToolContext) -> list[str]:
-    return tool_context.list_artifacts()
+async def list_files(tool_context: ToolContext) -> list[str]:
+    """List the current session's artifact filenames."""
+    return await tool_context.list_artifacts()
 ```
 
 ### Namespacing
@@ -162,10 +167,10 @@ def list_files(tool_context: ToolContext) -> list[str]:
 
 ```python
 # Session-scoped
-tool_context.save_artifact("summary.txt", artifact)
+await tool_context.save_artifact("summary.txt", artifact)
 
 # User-scoped (accessible from any session for this user)
-tool_context.save_artifact("user:settings.json", artifact)
+await tool_context.save_artifact("user:settings.json", artifact)
 ```
 
 ### LoadArtifactsTool
