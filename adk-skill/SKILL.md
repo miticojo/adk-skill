@@ -18,12 +18,12 @@ ADK is Google's open-source framework for building AI agents powered by Gemini m
 ## Critical Rules
 
 1. **Entry point is `root_agent`** — a module-level variable in `agent.py`, or a `Workflow` object for graph-based agents.
-2. **Every agent package MUST have `__init__.py`** that imports the agent module: `from . import agent`
+2. **Code-based packages need `__init__.py`** importing the agent module: `from . import agent`. YAML-only agents do not.
 3. **Set `GOOGLE_API_KEY` in `.env`** or configure Vertex AI credentials before running.
 4. **In ADK 2.0, agents are nodes.** Do NOT override `_run_async_impl()` — use `BeforeAgentCallback` / `AfterAgentCallback` instead.
 5. **Do NOT append events directly** to `context.session.events`. Yield events from your node so the framework manages persistence and routing.
 6. **Never catch `BaseException` in tools** — it breaks HITL pause/resume and automatic retries.
-7. **One agent = one responsibility.** Split agents with 5+ tools into specialists.
+7. **Group tools by responsibility.** Split unrelated domains when it improves routing; tool count alone does not require more agents.
 8. **Use `output_key` + `output_schema`** for reliable data flow between agents — not free text.
 
 ## Documentation & Resources
@@ -76,8 +76,6 @@ Python 3.11+ with `pip install "google-adk==2.13.0"`; set `GOOGLE_API_KEY` in `.
 | Testing | `pytest` with `InMemoryRunner` |
 | Evaluation | EvalSet with `.test.json`, `adk eval` CLI |
 
----
-
 ## Project Structure
 
 **Code-based project:**
@@ -117,8 +115,6 @@ root_agent = LlmAgent(
     tools=[...],
 )
 ```
-
----
 
 ## Workflow Types
 
@@ -164,13 +160,13 @@ from google.adk import Context, Workflow
 from google.adk.workflow import node
 
 @node(name="process_item")
-def process(item: str) -> str:
-    return f"Processed: {item}"
+def process(node_input: str) -> str:
+    return f"Processed: {node_input}"
 
 @node(rerun_on_resume=True)
-async def orchestrator(ctx: Context, items: list[str]) -> str:
+async def orchestrator(ctx: Context, node_input: list[str]) -> str:
     results = []
-    for item in items:
+    for item in node_input:
         result = await ctx.run_node(process, item)
         results.append(result)
     return "\n".join(results)
@@ -206,15 +202,13 @@ root_agent = LlmAgent(
 
 ### Collaboration Modes
 
-Modes: `chat` (default — controls conversation until handoff), `task` (auto-return via `complete_task`, user clarification only), `single_turn` (no user interaction, parallel-safe, returns result). Full table: [references/workflows.md](references/workflows.md).
+Modes: `chat` (conversation until handoff), `task` (auto-return via `finish_task`, may ask for clarification), `single_turn` (no user interaction, returns result). Full table: [references/workflows.md](references/workflows.md).
 
-**Note:** Do NOT set `mode` on the root agent. It is for sub-agents only. Task-mode agents cannot have sub-agents.
+Set modes on sub-agents to control delegation. Task-mode wrappers support nested delegation and resumption in 2.12+. The root is the conversation entry point.
 
 ### 4. Template Workflows (1.x Compatible)
 
 `SequentialAgent`, `ParallelAgent`, and `LoopAgent` still work but are superseded. See [references/advanced-patterns.md](references/advanced-patterns.md).
-
----
 
 ## Tools
 
@@ -394,8 +388,6 @@ agent = LlmAgent(
 )
 ```
 
----
-
 ## Running and Testing
 
 ```bash
@@ -439,13 +431,9 @@ async def test_agent():
 
 Define eval cases in `.test.json` files, run with `adk eval`, `pytest`, or web UI. ADK 2.2+ adds `RubricBasedMultiTurnTrajectoryEvaluator`. See [references/evaluation.md](references/evaluation.md).
 
----
-
 ## Model Selection
 
 Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gemini-flash-latest`; for regional endpoints use a pinned ID (e.g. `gemini-3.6-flash`, or `gemini-3.1-pro-preview` for complex reasoning). Non-Gemini: Claude, Ollama, LiteLLM, vLLM, OCI GenAI; provider-prefixed Gemini IDs also accepted (2.4+). Configure via `generate_content_config=types.GenerateContentConfig(...)` — `temperature`/`top_p`/`top_k` are deprecated on the Gemini API.
-
----
 
 ## Design Patterns
 
@@ -463,7 +451,7 @@ Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gem
 
 **Key design rules:**
 - Prefer graph-based or dynamic workflows over template workflows for new development.
-- Split agents with 5+ tools into focused specialists. One agent = one responsibility.
+- Group agents by responsibility; split unrelated domains when routing benefits.
 - Pass data between agents via `output_key` + `output_schema` (Pydantic) — never rely on free text.
 - Separate generation from evaluation — use a different agent to critique.
 - Write precise sub-agent `description` fields — they drive Auto-Flow routing decisions.
@@ -471,8 +459,6 @@ Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gem
 - Include a fallback route for unclear inputs in graph edges.
 
 See also: [references/workflows.md](references/workflows.md) (graph routing, HITL, dynamic loops) | [references/advanced-patterns.md](references/advanced-patterns.md) (Agent Config, deployment, AG-UI) | [references/design-patterns.md](references/design-patterns.md) (chaining, reflection, planning) | [references/a2a-protocol.md](references/a2a-protocol.md) (A2A server/client) | [references/memory-artifacts.md](references/memory-artifacts.md) (memory backends, artifacts) | [references/troubleshooting.md](references/troubleshooting.md) (debugging, 1.x->2.0 migration).
-
----
 
 ## Decision Guide
 

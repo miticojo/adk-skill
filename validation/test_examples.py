@@ -5,6 +5,7 @@ Dependencies: google-adk[a2a,eval,openai,mcp]==2.13.0 (checked 2026-10-25).
 """
 
 import math
+import asyncio
 import os
 from pathlib import Path
 import re
@@ -12,6 +13,11 @@ import unittest
 from unittest.mock import patch
 
 from google.adk.agents import Context
+from google.adk import Workflow
+from google.adk.apps import App, ResumabilityConfig
+from google.adk.runners import InMemoryRunner
+from google.adk.workflow import node
+from google.genai import types
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
@@ -68,6 +74,108 @@ class ArtifactExamples(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metadata, {"mime_type": "text/plain", "size": len(b"Report ready\n")})
         self.assertEqual(await ns["load_latest_report"]("missing.txt", context),
                          {"error": "missing.txt not found"})
+
+
+class WorkflowExamples(unittest.IsolatedAsyncioTestCase):
+    async def runner_for(self, workflow):
+        runner = InMemoryRunner(app=App(
+            name="test", root_agent=workflow,
+            resumability_config=ResumabilityConfig(is_resumable=True),
+        ))
+        self.addAsyncCleanup(runner.close)
+        session = await runner.session_service.create_session(app_name="test", user_id="user")
+        return runner, session
+
+    async def run_message(self, runner, session, text, **kwargs):
+        return [event async for event in runner.run_async(
+            user_id="user", session_id=session.id,
+            new_message=types.Content(role="user", parts=[types.Part.from_text(text=text)]),
+            **kwargs,
+        )]
+
+    async def test_routing_and_fallback(self):
+        for text, expected in (("bug", "bug"), ("support", "support"), ("other", "unknown")):
+            with self.subTest(text=text):
+                ns = example("references/workflows.md", "### Conditional Routing")
+                runner, session = await self.runner_for(ns["root_agent"])
+                events = await self.run_message(runner, session, text)
+                self.assertIn(expected, [event.output for event in events])
+
+    async def test_parallel_join(self):
+        ns = example("references/workflows.md", "### Fan-out and Fan-in")
+        runner, session = await self.runner_for(ns["root_agent"])
+        events = await self.run_message(runner, session, "hello world")
+        self.assertIn("HELLO WORLD (2 words)", [event.output for event in events])
+
+    async def test_dynamic_dispatch(self):
+        ns = example("references/workflows.md", "### Bounded Loops and Stable Execution IDs")
+        runner, session = await self.runner_for(ns["root_agent"])
+        events = await self.run_message(runner, session, "hello")
+        self.assertIn("hello!!!", [event.output for event in events])
+
+    async def test_confirmation_accept_and_reject(self):
+        for accepted in (True, False):
+            with self.subTest(accepted=accepted):
+                ns = example("references/workflows.md", "### Node Confirmation")
+                runner, session = await self.runner_for(ns["root_agent"])
+                paused = await self.run_message(runner, session, "report")
+                calls = [call for event in paused for call in event.get_function_calls()
+                         if call.name == "adk_request_input"]
+                self.assertEqual(len(calls), 1)
+                self.assertNotIn("approved_count", session.state)
+                helper = example("references/workflows.md", "### Resuming a RequestInput")
+                resumed = await helper["resume_input"](
+                    runner, session.id, paused[0].invocation_id,
+                    calls[0].args["interruptId"], {"confirmed": accepted},
+                )
+                stored = await runner.session_service.get_session(
+                    app_name="test", user_id="user", session_id=session.id,
+                )
+                self.assertEqual(stored.state.get("approved_count", 0), int(accepted))
+                outputs = [event.output for event in resumed if event.output is not None]
+                self.assertIn("Approved: report" if accepted else
+                              {"error": "This tool call is rejected."}, outputs)
+
+    async def test_failed_node_reexecutes_on_resume(self):
+        attempts = []
+
+        def flaky(node_input: str) -> str:
+            attempts.append(node_input)
+            if len(attempts) == 1:
+                raise RuntimeError("transient offline failure")
+            return "recovered"
+
+        runner, session = await self.runner_for(Workflow(name="recovery", edges=[("START", flaky)]))
+        with self.assertRaisesRegex(RuntimeError, "transient offline failure"):
+            await self.run_message(runner, session, "start")
+        stored = await runner.session_service.get_session(
+            app_name="test", user_id="user", session_id=session.id,
+        )
+        invocation_id = stored.events[-1].invocation_id
+        recovered = [event async for event in runner.run_async(
+            user_id="user", session_id=session.id, invocation_id=invocation_id,
+        )]
+        self.assertEqual(len(attempts), 2)
+        self.assertIn("recovered", [event.output for event in recovered])
+
+    async def test_abort_stops_running_node(self):
+        started = asyncio.Event()
+        stopped = asyncio.Event()
+
+        async def wait(node_input: str) -> str:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                stopped.set()
+
+        runner, session = await self.runner_for(Workflow(name="abort", edges=[("START", wait)]))
+        abort_signal = asyncio.Event()
+        task = asyncio.create_task(self.run_message(runner, session, "start", abort_signal=abort_signal))
+        await asyncio.wait_for(started.wait(), timeout=5)
+        abort_signal.set()
+        await asyncio.wait_for(task, timeout=5)
+        self.assertTrue(stopped.is_set())
 
 
 if __name__ == "__main__":
