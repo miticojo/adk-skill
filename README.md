@@ -165,6 +165,27 @@ Native examples also passed local compilation/type checking with Go 1.26.6, JDK 
 
 Cloud deployment, real model conversations/evaluations, Live audio, Android and KSP generation require separate integration tests with authorized services and credentials. Offline checks do not establish model availability or production behavior.
 
+### Practical Codex and Claude Code check — 2026-10-25
+
+Both native clients used the installed **adk-skill 2.2.0** to generate separate Python projects from the same brief. Codex read the installed `SKILL.md` and `references/workflows.md`; Claude Code invoked its `Skill` tool and read the workflow reference. This checked actual skill use and executable output, beyond discovery in the clients' skill lists.
+
+Environment: Python **3.13.17**, `google-adk==2.13.0`, Codex CLI **0.164.0-alpha.11.1** and Claude Code **2.1.308**. Each generated project exported a real ADK `Workflow` as `root_agent`, normalized input with `strip().lower()`, and routed it to a priority or normal function. Execution used ADK runners and in-memory sessions, without model calls or cloud credentials.
+
+| Independent input | Expected result, verified for both projects |
+|-------------------|---------------------------------------------|
+| `"  HELLO  "` | `NORMAL: hello` |
+| `"  urgent: Help Me  "` | `PRIORITY: help me` |
+| `"UrGeNt:  FIX  "` | `PRIORITY: fix` |
+| `"ordinary: Task"` | `NORMAL: ordinary: task` |
+| `"urgent-ish"` | `NORMAL: urgent-ish` |
+| `""` | `ValueError` |
+| `"   "` | `ValueError` |
+| `"\n\t"` | `ValueError` |
+
+Codex's generated suite passed **7 tests**; Claude Code's passed **4 tests**. Both demos ran successfully, with no code repair needed. An independent verifier then passed **3 test methods per project**, covering the eight inputs above, the installed ADK version, and the exported agent's `Workflow` type. During the independent workflow runs, `socket.socket.connect` was patched to fail on a network connection attempt; none occurred. ADK logged the expected `ValueError` tracebacks for invalid inputs, and the exceptions reached the callers as required.
+
+Limits: this was one explicitly prompted generation per client, not a reliability benchmark or a test of automatic skill activation. The coding clients used their configured remote models to generate code; only the generated workflow execution was tested without network access. It does not validate ADK model calls, cloud integrations, persistent sessions, other SDK languages or production deployment. Claude Code's restricted command permissions blocked two shell attempts; file reading and an absolute interpreter path completed the work. The temporary generated projects, verifier, Python environment, download cache and logs were deleted after verification, so these results are a dated manual check, not an additional committed regression suite. Installed skills were preserved; no task process remained.
+
 ## Quality Gates & Releases
 
 Every skill/test PR and release runs through automated gates ([workflow](.github/workflows/release.yml)):
