@@ -35,11 +35,11 @@ ADK is Google's open-source framework for building AI agents powered by Gemini m
 
 | Language | Package | Install | ADK 2.x |
 |----------|---------|---------|---------|
-| Python | `google-adk` | `pip install google-adk` | 2.7 (reference) |
-| Go | `google.golang.org/adk/v2` | `go get google.golang.org/adk/v2` | 2.2 |
-| Java | `com.google.adk:google-adk` | Maven/Gradle | 1.x only |
-| Kotlin | `com.google.adk:google-adk-kotlin-core` | Gradle | 0.8 pre-GA |
-| TypeScript | `@google/adk` | `npm install @google/adk` | 2.0 |
+| Python | `google-adk` | `pip install google-adk==2.13.0` | 2.13.0 |
+| Go | `google.golang.org/adk/v2` | `go get google.golang.org/adk/v2@v2.6.0` | 2.6.0 |
+| Java | `com.google.adk:google-adk` | Maven/Gradle | 1.13.0; experimental graphs |
+| Kotlin | `com.google.adk:google-adk-kotlin-core` | Gradle | 1.4.0; stable core, experimental graphs |
+| TypeScript | `@google/adk` | `npm install @google/adk@2.3.0` | 2.3.0 |
 
 Go and TypeScript also publish parallel 1.x LTS lines (`google.golang.org/adk` / `@google/adk@^1`).
 
