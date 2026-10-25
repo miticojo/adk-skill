@@ -1,19 +1,32 @@
-# ADK Tools Reference
+# ADK Tools Reference (Python 2.13.0)
 
 ## FunctionTool (Explicit Wrapping)
 
 When you need more control over tool creation:
 
 ```python
+import math
+from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 
-def calculate(expression: str) -> str:
-    """Evaluate a mathematical expression."""
-    return str(eval(expression))
+def calculate(left: float, right: float) -> dict[str, float]:
+    """Add two finite numbers.
+
+    Args:
+        left: First number.
+        right: Second number.
+    """
+    if not all(isinstance(value, (int, float)) and not isinstance(value, bool)
+               and math.isfinite(value) for value in (left, right)):
+        raise ValueError("Both operands must be finite numbers")
+    result = left + right
+    if not math.isfinite(result):
+        raise ValueError("Result must be finite")
+    return {"result": result}
 
 calc_tool = FunctionTool(func=calculate)
 
-agent = Agent(
+agent = LlmAgent(
     name="calculator",
     tools=[calc_tool],
 )
@@ -86,6 +99,7 @@ tools = MCPToolset(
 ### Streamable HTTP Connection (Remote MCP Server)
 
 ```python
+import os
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 
 tools = MCPToolset(
@@ -100,6 +114,8 @@ tools = MCPToolset(
 - `elicitation_callback=` on `MCPToolset` — handle server elicitation requests programmatically.
 - `MCPToolset` can reuse the server's tool list instead of re-declaring schemas.
 - HTTP trace debugging extends to MCP toolset operations (2.4+).
+- ADK 2.9+ supports MCP SDK 1.x and 2.x. For SDK 2.x, `ADK_ENABLE_MCP_MODERN_PROTOCOL=1` opts into the modern wire path (2.11+); SDK compatibility does not turn that behavior on automatically.
+- Keep connection/toolset cleanup in the runner's lifecycle. Prefer Streamable HTTP for new remote servers; SSE is a legacy transport.
 
 ## Agent as MCP Server
 
@@ -118,7 +134,7 @@ One ADK session is kept per MCP connection, so successive calls form a multi-tur
 
 ```python
 from google.adk.tools.retrieval.vertex_ai_rag_retrieval import VertexAiRagRetrieval
-from vertexai import rag
+from agentplatform import rag
 
 retrieval_tool = VertexAiRagRetrieval(
     name="retrieve_docs",
@@ -134,42 +150,13 @@ agent = Agent(
 )
 ```
 
-## APIRegistryToolset (Cloud API Registry)
+## Managed API and Pub/Sub Integrations
 
-Connect to managed APIs via Google Cloud API Registry (v1.20.0+):
+Use `AgentRegistry` from `google.adk.integrations.agent_registry` for managed MCP/A2A discovery. Its import needs the `[agent-identity]` extra and runtime credentials. The old `integrations.api_registry.ApiRegistry` is deprecated; there is no `tools.api_registry_toolset.APIRegistryToolset` module in 2.13.
 
-```python
-from google.adk.tools.api_registry_toolset import APIRegistryToolset
+Pub/Sub uses `PubSubToolset` from `google.adk.tools.pubsub.pubsub_toolset`, with `credentials_config` and `pubsub_tool_config`, not a `PubSubTool(project=..., topic=...)` constructor. Install `[gcp]` when using cloud tool integrations. Configure allowed operations and project scope before adding tools that publish messages.
 
-toolset = APIRegistryToolset(
-    project="my-project",
-    location="us-central1",
-    api_id="my-api",
-)
-
-agent = Agent(
-    name="api_agent",
-    tools=[toolset],
-)
-```
-
-## Cloud Pub/Sub Tool
-
-Publish messages to Google Cloud Pub/Sub topics (v1.22.0+):
-
-```python
-from google.adk.tools.pubsub_tool import PubSubTool
-
-pubsub = PubSubTool(
-    project="my-project",
-    topic="my-topic",
-)
-
-agent = Agent(
-    name="event_agent",
-    tools=[pubsub],
-)
-```
+Sources: [Agent Registry](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/integrations/agent_registry/agent_registry.py), [Pub/Sub toolset](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/tools/pubsub/pubsub_toolset.py).
 
 ## Eventarc Advanced Toolset
 
@@ -177,8 +164,9 @@ Receive and act on Google Cloud events via Eventarc Advanced (2.6+):
 
 ```python
 from google.adk.integrations.eventarc import EventarcToolset
+from google.adk.agents import LlmAgent
 
-agent = Agent(
+agent = LlmAgent(
     name="event_responder",
     tools=[EventarcToolset()],
 )
@@ -192,11 +180,12 @@ Generate tools from an OpenAPI spec (REST APIs):
 
 ```python
 from google.adk.tools.openapi_tool import OpenAPIToolset
+from pathlib import Path
 
 toolset = OpenAPIToolset(
-    spec_str=open("openapi.yaml").read(),
+    spec_str=Path("openapi.yaml").read_text(), spec_str_type="yaml",
     # Optional: auth header
-    header_provider=lambda: {"Authorization": f"Bearer {get_token()}"},
+    header_provider=lambda context: {"Authorization": f"Bearer {get_token()}"},
 )
 
 agent = Agent(
@@ -207,7 +196,7 @@ agent = Agent(
 
 ## SkillToolset (Agent Skills)
 
-Load Agent Skills (per [agentskills.io spec](https://agentskills.io/specification)) into your agent at runtime (v1.25.0+, experimental). Skills are modular instruction packages with three levels: L1 (metadata for discovery), L2 (instructions loaded on trigger), L3 (references/assets/scripts loaded on demand).
+Load Agent Skills (per [agentskills.io spec](https://agentskills.io/specification)) into your agent at runtime. `SkillToolset` is stable in 2.13. Skills are modular instruction packages with three levels: L1 (metadata for discovery), L2 (instructions loaded on trigger), L3 (references/assets/scripts loaded on demand).
 
 ### Load from Directory
 
@@ -269,6 +258,33 @@ greeting_skill = models.Skill(
 - Non-blocking skill loading is supported in async runtimes.
 - Skills can execute `scripts/` inside an [Environment](#environments-sandboxed-code-execution) (Daytona, Cloud Run sandbox).
 
+### Discovery and Lifecycle (2.10+)
+
+The following standalone configuration illustrates a bounded catalog. Enable `ADK_ENABLE_SKILL_LIFECYCLE=1` before starting the process to use lifecycle behavior; it remains experimental and off by default even though `SkillToolset` is stable.
+
+```python
+from google.adk.skills import models
+from google.adk.tools.skill_toolset import (
+    SkillToolset, SkillDiscoveryMode, SkillLifecycleConfig, SkillLifecycleMode,
+)
+
+greeting_skill = models.Skill(
+    frontmatter=models.Frontmatter(name="greeting-skill", description="Greet a user."),
+    instructions="Greet the user briefly.",
+)
+skill_tools = SkillToolset(
+    skills=[greeting_skill],
+    discovery_mode=SkillDiscoveryMode.LAZY,
+    lifecycle_config=SkillLifecycleConfig(
+        default_mode=SkillLifecycleMode.BOUNDED, max_active_skills=3,
+    ),
+)
+```
+
+`LAZY` offers discovery on demand; `EAGER` includes the catalog in instructions. `PERSISTENT` skills stay active and do not count against the cap; `BOUNDED` skills are evicted by the cap; `EPHEMERAL` skills expire after the invocation that loaded them (under `run_live` they persist for the stream). Programmatic APIs are `await skill_tools.load_skill(ctx, name)`, `skill_tools.unload_skill(ctx, name)` and `skill_tools.list_active_skills(ctx)`. Unloading removes later instruction injection; it does not delete external files or revoke effects already performed.
+
+`SkillLifecycleConfig(revalidate_skills=True)` checks for changed content; this may require registry reads and invalidate prompt caches. `SkillToolset(save_output_artifacts=True)` persists generated script output files as artifacts (2.12+); configure an artifact service and a code executor/environment. The script tool is offered only when script execution is configured.
+
 ---
 
 ## Long-Running Tools
@@ -295,7 +311,7 @@ def check_job_status(job_id: str) -> dict:
 1. **Clear docstrings**: The docstring becomes the tool description for the LLM
 2. **Type hints**: All parameters must have type hints
 3. **Return useful data**: Return structured dicts, not raw strings
-4. **Handle errors gracefully**: Return error info, don't raise exceptions (but allow standard exceptions to propagate so ADK 2.0 auto-retries work)
+4. **Distinguish failures**: Return structured results for expected domain errors; raise transient failures when a configured retry policy should retry them. Retried operations must be idempotent.
 5. **Keep tools focused**: One tool = one action
 6. **Use ToolContext for state**: Don't use global variables
 7. **Never catch `BaseException`**: It traps `NodeInterruptedError`, breaking HITL pause/resume
@@ -327,19 +343,29 @@ def get_data(id):
 Configure authentication for custom tools (API keys, OAuth):
 
 ```python
-from google.adk.tools import FunctionTool
-from google.adk.auth import AuthConfig, APIKeyAuth
+import os
+from fastapi.openapi.models import APIKey, APIKeyIn
+from google.adk.auth.auth_credential import AuthCredential, AuthCredentialTypes
+from google.adk.auth.auth_tool import AuthConfig
+from google.adk.tools.authenticated_function_tool import AuthenticatedFunctionTool
 
-def get_customer_data(customer_id: str) -> dict:
-    """Fetch customer data from CRM."""
-    ...
+def get_customer_data(customer_id: str, credential: AuthCredential) -> dict:
+    """Prepare an authenticated CRM request for a customer.
+
+    Args:
+        customer_id: Customer identifier.
+    """
+    # Use credential.api_key in your HTTP client's header; never return it.
+    return {"customer_id": customer_id, "status": "ready"}
 
 # Tool with API key auth
-tool = FunctionTool(
+tool = AuthenticatedFunctionTool(
     func=get_customer_data,
     auth_config=AuthConfig(
-        auth_scheme=APIKeyAuth(header_name="X-API-Key"),
-        auth_credential=lambda: os.environ["CRM_API_KEY"],
+        auth_scheme=APIKey(**{"in": APIKeyIn.header}, name="X-API-Key"),
+        raw_auth_credential=AuthCredential(
+            auth_type=AuthCredentialTypes.API_KEY, api_key=os.environ["CRM_API_KEY"],
+        ),
     ),
 )
 ```
@@ -386,4 +412,31 @@ Since 2.7, tools can return media (images/audio) as part of the function respons
 
 ## Environments (Sandboxed Code Execution)
 
-Code-executor sandboxes are pluggable "Environments": E2B (`[e2b]` extra), Daytona (`DaytonaEnvironment`, 2.4+, `[daytona]` extra), and Cloud Run sandbox (2.5+). Skills scripts and code execution run against the configured environment — see `references/advanced-patterns.md` for deployment details.
+Code-executor environments include E2B (`[e2b]`), Daytona (`[daytona]`), Cloud Run, OpenSandbox (`[opensandbox]`, 2.13+) and `AgentEngineEnvironment` (2.13+). These backends have different isolation and credential requirements; choose a configured remote environment for untrusted scripts. Skills scripts run against the configured environment.
+
+## Model Consultation (2.11+)
+
+Use an advisor when the executor needs another model's analysis, while retaining control of the tools. This differs from model failover, which retries a failed generation on a backup model.
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.tools import ModelConsultTool
+
+agent = LlmAgent(
+    name="executor", model="gemini-flash-latest",
+    instruction="Consult the advisor for difficult decisions; execute tools yourself.",
+    tools=[ModelConsultTool(
+        model="gemini-flash-latest", max_uses=1, session_max_uses=3,
+        timeout_seconds=30,
+    )],
+)
+```
+
+The advisor receives context but no executable tools. Budgets are per invocation and per session. ADK 2.13 adds `ForceEscalationPlugin` for deterministic consultation and consultation token/cost telemetry; configure these only when the workflow requires them.
+
+## Versioned Sources
+
+- [Skill discovery, lifecycle and artifact persistence](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/tools/skill_toolset.py)
+- [Feature stages and defaults](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/features/_feature_registry.py)
+- [Model consultation](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/tools/model_consult/_model_consult_tool.py)
+- [2.8 auth, duplicate-call, credential-redaction and memory-search fixes](https://github.com/google/adk-python/releases/tag/v2.8.0)

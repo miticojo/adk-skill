@@ -1,460 +1,135 @@
-# A2A (Agent-to-Agent) Protocol with ADK
+# A2A (Agent-to-Agent) Protocol with ADK 2.13
 
-## Overview
+## Choosing A2A
 
-The [Agent2Agent (A2A) Protocol](https://a2a-protocol.org/) is an open standard for inter-agent communication over HTTP. ADK provides built-in support for both **exposing** agents as A2A servers and **consuming** remote A2A agents as sub-agents.
+Use A2A for independently deployed agents, cross-language services or team boundaries. Use local sub-agents for same-process work with shared session services. A remote agent has its own state and credentials; sharing an HTTP task/context ID does not make state global.
 
-**Status:** Supported in Python and Go (Experimental).
+Install `pip install "google-adk[a2a]==2.13.0"`. ADK supports A2A SDK 0.3 and 1.x through compatibility code; pin your selected dependency set when deploying.
 
-**Protocol v1.0 (spec, Mar 2026):** A2A 1.0 changed wire semantics from 0.3 — enum values are `SCREAMING_SNAKE_CASE`; `protocolVersion` moved into per-interface `supportedInterfaces[]`; Agent Cards can be JWS-signed; multi-tenancy via a `tenant` field; OAuth implicit/password flows removed (PKCE + Device Code added). ADK accepts `a2a-sdk` 1.x since ADK 2.5.
+## Expose an Agent
 
-## When to Use A2A vs Local Sub-Agents
-
-| Criteria | A2A (Remote) | Local Sub-Agents |
-|----------|-------------|-----------------|
-| Deployment | Separate services, different machines | Same process |
-| Teams | Different teams/organizations | Same team |
-| Languages | Cross-language (Python, Go, Java, etc.) | Same language |
-| Contract | Formal A2A protocol | In-memory function calls |
-| Performance | Network overhead | Direct memory access |
-| State | Isolated state per agent | Shared session state |
-
-**Use A2A when:**
-- The agent runs as a separate, standalone service
-- Different teams maintain different agents
-- Agents are written in different languages/frameworks
-- You need a microservices architecture for agents
-- You want formal API contracts between components
-
-**Use local sub-agents when:**
-- Agents share the same process and state
-- Performance is critical (no network overhead)
-- Simple internal code organization
-- Helper functions that don't need independent deployment
-
----
-
-## Architecture
-
-```text
-Consuming Side:                              Exposing Side:
-+--------------------+    +------------------+    +-------------------+
-|   Root Agent       |    | RemoteA2aAgent   |    |   A2A Server      |
-| (your application) |--->| (ADK client      |--->| (ADK component)   |
-|                    |    |  proxy)           |    |                   |
-+--------------------+    +------------------+    +-------------------+
-                                                          |
-                                                          v
-                                                  +-------------------+
-                                                  | Your Agent Code   |
-                                                  | (Exposed Service) |
-                                                  +-------------------+
-```
-
----
-
-## Python: Exposing an Agent via A2A
-
-### Method 1: `to_a2a()` Function (Recommended)
-
-Wraps any ADK agent as an A2A-compatible ASGI app. Auto-generates an agent card.
+Save this complete example as `remote_agent/agent.py`, with `remote_agent/__init__.py` importing `.agent`:
 
 ```python
-# remote_agent/agent.py
-from google.adk.agents import Agent
+import math
+from google.adk.agents import LlmAgent
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 
-root_agent = Agent(
-    name="math_agent",
-    model="gemini-flash-latest",
-    instruction="You solve math problems.",
-    tools=[solve_equation],
-)
+def add(left: float, right: float) -> dict[str, float]:
+    """Add two finite numbers.
 
-# Wrap as A2A app — auto-generates agent card
+    Args:
+        left: First operand.
+        right: Second operand.
+    """
+    if not all(math.isfinite(value) for value in (left, right, left + right)):
+        raise ValueError("Operands and result must be finite")
+    return {"result": left + right}
+
+root_agent = LlmAgent(
+    name="math_agent", model="gemini-flash-latest",
+    description="Add numbers using the add tool.",
+    instruction="Use add for arithmetic.", tools=[add],
+)
 a2a_app = to_a2a(root_agent, port=8001)
 ```
 
-Run with uvicorn:
-
 ```bash
 uvicorn remote_agent.agent:a2a_app --host localhost --port 8001
-```
-
-Verify the agent card:
-
-```bash
 curl http://localhost:8001/.well-known/agent-card.json
 ```
 
-### Method 2: `adk api_server --a2a`
+`to_a2a()` generates an Agent Card. For persistent operation, supply a runner factory and persistent services through its documented options; default in-memory services lose state on restart. `adk api_server --a2a --port 8001 path/to/agents` is another serving option, using an agent's `agent-card.json`.
 
-Exposes agents using the ADK CLI. Requires a manual `agent-card.json` file.
+## Consume a Remote Agent
 
-```bash
-# Install A2A dependencies
-pip install google-adk[a2a]
+```python
+from google.adk.agents import LlmAgent
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 
-# Expose agent on port 8001
-adk api_server --a2a --port 8001 path/to/agent_folder
+remote_math = RemoteA2aAgent(
+    name="math_agent", description="Adds numbers.",
+    agent_card="http://localhost:8001/.well-known/agent-card.json",
+)
+root_agent = LlmAgent(
+    name="coordinator", model="gemini-flash-latest",
+    instruction="Delegate arithmetic to math_agent.", sub_agents=[remote_math],
+)
 ```
 
-### Agent Card (agent-card.json)
+The card can be a URL, a path or an SDK `AgentCard`. Keep descriptions useful for routing. A caller-supplied `httpx.AsyncClient` must remain open for the runner's lifetime and close on the same event loop.
 
-The A2A protocol requires each agent to publish a card describing its capabilities:
+## Native Task Delegation (2.8+)
+
+```python
+from pydantic import BaseModel
+from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+
+class MathResult(BaseModel):
+    result: float
+
+remote_math = RemoteA2aAgent(
+    name="math_task", mode="task", output_schema=MathResult,
+    description="Complete an arithmetic task and return its result.",
+    agent_card="http://localhost:8001/.well-known/agent-card.json",
+)
+```
+
+Attach this proxy to a coordinator's `sub_agents`. The remote server must implement task completion: ADK task agents use `finish_task`. Its result schema must match the proxy's `output_schema`; an arbitrary text-only A2A server does not gain typed task semantics from the client's `mode` setting. `use_legacy=False` additionally requests ADK's new integration extension; it is a separate compatibility choice, not a requirement for setting task mode.
+
+Task completion is different from authentication or approval. Resume the exact pending request on its original invocation/branch. Credentials requested by a local tool must not be forwarded to an untrusted remote peer.
+
+## Agent Cards and Protocol Versions
+
+A2A 1.x uses protobuf messages rather than the Pydantic objects of SDK 0.3. RPC URLs and protocol versions live in `supportedInterfaces`; legacy top-level `url` cards belong to 0.3. Prefer auto-generation or a version-matched JSON file over mixing constructor fields from different SDKs.
+
+Example A2A 1.0 card (customize the URL and advertised capabilities to the actual server):
 
 ```json
 {
   "name": "math_agent",
-  "description": "An agent that solves math problems.",
+  "description": "Adds numbers",
   "version": "1.0.0",
-  "url": "http://localhost:8001",
-  "capabilities": {},
+  "supportedInterfaces": [
+    {"url": "http://localhost:8001", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}
+  ],
+  "capabilities": {"streaming": false},
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["text/plain"],
-  "skills": [
-    {
-      "id": "math_solving",
-      "name": "Math Problem Solving",
-      "description": "Solve equations and math problems",
-      "tags": ["math", "computation"]
-    }
-  ]
+  "skills": [{"id": "add", "name": "Add", "description": "Add numbers", "tags": ["math"]}]
 }
 ```
 
-With `to_a2a()`, the card is auto-generated from your agent's name, description, instruction, and tools. You can override it:
+Pass the file path through `to_a2a(..., agent_card="/absolute/path/agent-card.json")`. Card description and security settings are public discovery metadata; do not put credentials or private instructions in them. Since 2.12, card generation supports skill-level security. A fetched card's RPC targets are validated against its origin; fix a mismatched published URL instead of bypassing validation.
 
-```python
-from a2a.types import AgentCard
+## Authentication and Forwarded Context
 
-# Custom card
-card = AgentCard(
-    name="math_agent",
-    url="http://localhost:8001",
-    description="Solves math problems",
-    version="1.0.0",
-    capabilities={},
-    skills=[],
-    defaultInputModes=["text/plain"],
-    defaultOutputModes=["text/plain"],
-    supportsAuthenticatedExtendedCard=False,
-)
-a2a_app = to_a2a(root_agent, port=8001, agent_card=card)
+`RemoteA2aAgent` accepts `auth_scheme`, `auth_credential` and `credential_key` (2.8+). Credentials resolve for each invocation and authenticate both card discovery and requests. Use secret-backed configuration; never embed tokens in the card URL or logs.
 
-# Or from a JSON file
-a2a_app = to_a2a(root_agent, port=8001, agent_card="/path/to/agent-card.json")
-```
+`RunConfig.custom_metadata` propagates A2A metadata, but is not an authorization mechanism. `context_builder` (2.10+) controls which caller context is sent. Forward only the state/history the remote service needs. Namespaced forwarded `context_id` mode (2.12+) helps separate callers; use the tagged config contract instead of constructing IDs ad hoc.
 
----
+## Verification and Troubleshooting
 
-## Python: Consuming a Remote A2A Agent
+Test server discovery, task completion, multi-turn continuity, cancellation, and any approval/authentication resume your integration needs. For offline tests, construct the server/proxy and validate the card without a model call. A real conversation test also needs a running remote endpoint and model access.
 
-Use `RemoteA2aAgent` to connect to any A2A-compatible agent:
+| Failure | Fix |
+|---------|-----|
+| Missing A2A imports | Install the `[a2a]` extra |
+| Card not found | Check `/.well-known/agent-card.json`, path prefix and port |
+| Card validates but calls fail | Verify protocol version, binding, RPC URL and remote authentication |
+| Protobuf/Pydantic constructor errors | Use fields and JSON parsing for the installed A2A SDK major version |
+| Task never completes | Implement `finish_task` remotely and match the result schema |
+| `Event loop is closed` | Scope clients/runners to their event loop and close them before teardown |
+| Lost state after restart | Configure persistent services on the server and retain task context |
+| Empty final event | Filter `event.is_final_response()` and non-thought text parts rather than indexing the last event |
 
-```python
-from google.adk.agents import Agent
-from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+ADK's integration remains experimental. Suppress only the relevant feature warning if necessary, not all `UserWarning` messages. ADK 2.8–2.12 fixed auth forwarding, duplicate tool/resume handling and cancellation; use current fixes rather than adding workarounds that replay tool calls blindly.
 
-# Connect to remote A2A agent
-remote_math = RemoteA2aAgent(
-    name="math_agent",
-    description="Agent that solves math problems.",
-    agent_card="http://localhost:8001/.well-known/agent-card.json",
-)
+Go A2A examples and APIs are maintained in the [tagged Go samples](https://github.com/google/adk-go/tree/v2.6.0/examples); use the `/v2` module path when targeting Go ADK 2.6.
 
-# Use as a sub-agent in your root agent
-root_agent = Agent(
-    name="root_agent",
-    model="gemini-flash-latest",
-    instruction="""You are a helpful assistant.
-    Delegate math questions to math_agent.""",
-    sub_agents=[remote_math],
-)
-```
+## Versioned Sources
 
-The `RemoteA2aAgent` parameters:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Name for the remote agent |
-| `description` | `str` | What the agent does (used for routing) |
-| `agent_card` | `str` | URL to the agent card endpoint |
-
----
-
-## Go: Exposing an Agent via A2A
-
-Use the A2A launcher for auto-generated agent cards:
-
-```go
-package main
-
-import (
-    "log"
-    "strconv"
-
-    "google.golang.org/adk/agent"
-    "google.golang.org/adk/agent/llmagent"
-    "google.golang.org/adk/launcher/a2a"
-    "google.golang.org/adk/launcher/web"
-    "google.golang.org/adk/model/gemini"
-    "google.golang.org/genai"
-)
-
-func main() {
-    port := 8001
-    ctx := context.Background()
-
-    model, _ := gemini.NewModel(ctx, "gemini-2.0-flash", &genai.ClientConfig{})
-    myAgent, _ := llmagent.New(llmagent.Config{
-        Name:        "math_agent",
-        Model:       model,
-        Instruction: "You solve math problems.",
-        Tools:       []tool.Tool{solveTool},
-    })
-
-    webLauncher := web.NewLauncher(a2a.NewLauncher())
-    webLauncher.Launch(ctx, myAgent,
-        "a2a", "--a2a_agent_url", "http://localhost:"+strconv.Itoa(port),
-        "--port", strconv.Itoa(port),
-    )
-}
-```
-
-## Go: Consuming a Remote A2A Agent
-
-```go
-import "google.golang.org/adk/agent/remoteagent"
-
-remoteAgent, err := remoteagent.NewA2A(remoteagent.A2AConfig{
-    Name:            "math_agent",
-    Description:     "Agent that solves math problems.",
-    AgentCardSource: "http://localhost:8001",
-})
-
-rootAgent, _ := llmagent.New(llmagent.Config{
-    Name:      "root_agent",
-    Model:     model,
-    SubAgents: []agent.Agent{remoteAgent},
-})
-```
-
----
-
-## Complete Example: Two-Agent A2A System (Python)
-
-### Project Structure
-
-```text
-a2a_demo/
-├── remote_agent/
-│   ├── __init__.py
-│   └── agent.py         # Exposed via A2A (port 8001)
-├── main_agent/
-│   ├── __init__.py
-│   └── agent.py         # Consumes remote agent
-├── pyproject.toml
-└── .env
-```
-
-### Remote Agent (Exposed)
-
-```python
-# remote_agent/agent.py
-from google.adk.agents import Agent
-from google.adk.a2a.utils.agent_to_a2a import to_a2a
-
-def check_prime(nums: list[int]) -> str:
-    """Check if numbers in a list are prime.
-
-    Args:
-        nums: The list of numbers to check.
-
-    Returns:
-        A string indicating which numbers are prime.
-    """
-    results = []
-    for n in nums:
-        if n < 2:
-            results.append(f"{n} is not prime")
-        elif all(n % i != 0 for i in range(2, int(n**0.5) + 1)):
-            results.append(f"{n} is prime")
-        else:
-            results.append(f"{n} is not prime")
-    return ", ".join(results)
-
-root_agent = Agent(
-    name="prime_checker",
-    model="gemini-flash-latest",
-    instruction="You check if numbers are prime using the check_prime tool.",
-    tools=[check_prime],
-)
-
-# Expose as A2A server
-a2a_app = to_a2a(root_agent, port=8001)
-```
-
-### Main Agent (Consuming)
-
-```python
-# main_agent/agent.py
-import random
-from google.adk.agents import Agent
-from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
-
-def roll_die(sides: int) -> int:
-    """Roll a die with the given number of sides.
-
-    Args:
-        sides: Number of sides on the die.
-
-    Returns:
-        The rolled result.
-    """
-    return random.randint(1, sides)
-
-prime_agent = RemoteA2aAgent(
-    name="prime_checker",
-    description="Checks if numbers are prime.",
-    agent_card="http://localhost:8001/.well-known/agent-card.json",
-)
-
-root_agent = Agent(
-    name="root_agent",
-    model="gemini-flash-latest",
-    instruction="""You can roll dice and check if numbers are prime.
-    Delegate prime checking tasks to prime_checker.
-    1. If asked to roll a die, use roll_die.
-    2. If asked to check primes, delegate to prime_checker.
-    3. If asked to roll and check, roll first then delegate the result.""",
-    tools=[roll_die],
-    sub_agents=[prime_agent],
-)
-```
-
-### Running
-
-```bash
-# Terminal 1: Start the remote A2A agent
-uvicorn remote_agent.agent:a2a_app --host localhost --port 8001
-
-# Terminal 2: Start the main agent
-adk web main_agent
-```
-
----
-
-## Programmatic Testing (A2A)
-
-Test A2A communication programmatically using `InMemoryRunner` on the consuming side:
-
-```python
-import pytest
-from google.adk.runners import InMemoryRunner
-from google.genai import types
-from main_agent.agent import root_agent
-
-@pytest.mark.asyncio
-async def test_a2a_prime_check():
-    """Test that root agent delegates prime checking via A2A."""
-    runner = InMemoryRunner(agent=root_agent, app_name="test")
-    session = await runner.session_service.create_session(
-        user_id="test_user", app_name="test",
-    )
-    content = types.Content(
-        role="user",
-        parts=[types.Part.from_text(text="Is 7 a prime number?")],
-    )
-    events = []
-    async for event in runner.run_async(
-        user_id="test_user",
-        session_id=session.id,
-        new_message=content,
-    ):
-        events.append(event)
-
-    final_text = events[-1].content.parts[0].text.lower()
-    assert "prime" in final_text
-```
-
-**Note:** The remote A2A server must be running before executing tests.
-
----
-
-## A2A Metadata Propagation
-
-ADK automatically propagates metadata across A2A boundaries via `custom_metadata` in `RunConfig`:
-
-```python
-from google.adk.agents.run_config import RunConfig
-
-run_config = RunConfig(
-    custom_metadata={"trace_id": "abc-123", "user_tier": "premium"}
-)
-
-# Metadata appears in remote agent events as:
-# event.custom_metadata["a2a_metadata"]["trace_id"]
-```
-
----
-
-## Port Configuration
-
-When running locally, use different ports for each agent:
-
-| Agent | Default Port | Flag |
-|-------|-------------|------|
-| Main agent (`adk web`) | 8000 | `--port` |
-| Remote A2A agent | 8001+ | `--port` or uvicorn `--port` |
-
----
-
-## Important: Installation
-
-The base `google-adk` package does **not** include A2A dependencies. You must install with the `a2a` extra:
-
-```bash
-pip install google-adk[a2a]
-```
-
-This installs the `a2a-sdk` package alongside ADK.
-
----
-
-## Practical Notes (Validated by Testing)
-
-**Agent card auto-generation:** `to_a2a()` generates a card with version `"0.0.1"` and auto-detects skills from agent tools and instructions. Each tool becomes a separate skill entry in the card.
-
-**Agent identity propagation:** When a remote agent responds via A2A, the `event.author` field correctly reflects the remote agent's name (e.g., `"weather_service"`), not the root agent.
-
-**Multi-turn sessions:** A2A works correctly across multiple turns within the same session. The remote agent maintains context through the A2A protocol's task/message system.
-
-**Event loop requirement:** When testing A2A programmatically, run all A2A tests in a **single `asyncio.run()` call**. Calling `asyncio.run()` per test closes the event loop between tests, which breaks the A2A client's httpx async connections. Use a single async test runner:
-
-```python
-async def run_all_tests():
-    await test_agent_card()
-    await test_a2a_query()
-    await test_multi_turn()
-
-asyncio.run(run_all_tests())  # Single event loop for all A2A tests
-```
-
-**Experimental status:** ADK's A2A implementation emits `UserWarning` messages about experimental status. The A2A protocol and SDK themselves are stable; only ADK's integration layer is experimental. Suppress with `warnings.filterwarnings("ignore", category=UserWarning)` if needed.
-
-**ADK 2.6 additions:** per-invocation auth headers when fetching agent cards; `to_a2a()` apps can be served under a path prefix; remote task cancellation is honored instead of raising `NotImplementedError`; A2A converters extract metadata symmetrically in both directions.
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|---------|
-| Connection refused | Verify remote agent is running and port is correct |
-| Agent card not found | Check `/.well-known/agent-card.json` endpoint |
-| Import error on `to_a2a` | Install with `pip install google-adk[a2a]` |
-| `Event loop is closed` | Run all A2A tests in a single `asyncio.run()` call |
-| Timeout on A2A calls | Check network, increase timeout, verify agent card URL |
-| Agent not routing to remote | Check `description` field -- it drives LLM routing decisions |
-| Experimental warnings | ADK A2A integration is experimental; protocol itself is stable |
+- [Remote proxy and task completion](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/a2a/agent/_remote_a2a_agent.py)
+- [Serving and runner factories](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/a2a/utils/agent_to_a2a.py)
+- [Card construction and security](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/a2a/utils/agent_card_builder.py)
+- [0.3/1.x wire compatibility](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/a2a/_compat.py)

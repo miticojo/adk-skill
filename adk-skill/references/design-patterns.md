@@ -11,7 +11,8 @@ Best practices for designing, building, and operating ADK agents. Patterns are o
 | Output quality must be high | Reflection loop | `LoopAgent` with producer + critic |
 | Diverse inputs need different handling | Dynamic routing | Parent `Agent` with `sub_agents` (Auto-Flow) |
 | Procedure is unknown at design time | Dynamic planning | Planning agent writes plan to state; executor agents follow it |
-| Tool calls may fail | Layered fallback | `SequentialAgent`: primary → fallback → response |
+| Model generation may fail | Model failover | Experimental `FallbackModel` with ordered models |
+| Tool calls may fail | Retry or explicit recovery route | Node `RetryConfig`, error hooks, domain-result routing |
 | Safety/compliance is required | Guardrails | `before_model_callback` + `before_tool_callback` |
 | Budget constraints exist | Resource tiering | Different `model` per agent (Pro vs Flash) |
 | Agent must recall across sessions | Long-term memory | `MemoryService` (search + store) |
@@ -173,19 +174,22 @@ Three-phase pipeline: **Detect → Handle → Recover**.
 | Handle | Retry with adjusted params, fall back to alternatives, degrade gracefully | Retry exact same failing call in tight loop |
 | Recover | Roll back state to last checkpoint, diagnose root cause | Leave corrupted state in place |
 
-**ADK fallback pattern:**
+An unhandled exception stops a `SequentialAgent`; adding a fallback sub-agent does not catch that exception. For expected domain failures, return a typed error result and route it to an explicit handler. For transient node errors, configure bounded retries. Use `on_tool_error_callback` or `on_model_error_callback` only when the returned replacement is a valid recovery response.
+
+### Model Failover (2.9+)
+
 ```python
-robust_agent = SequentialAgent(
-    name="robust_agent",
-    sub_agents=[
-        primary_handler,    # Attempts main approach
-        fallback_handler,   # Checks state["primary_failed"], tries alternative
-        response_agent,     # Synthesizes result or apologizes
-    ]
+from google.adk.agents import LlmAgent
+from google.adk.models import FallbackModel
+
+agent = LlmAgent(
+    name="resilient_agent",
+    model=FallbackModel(models=["gemini-3.5-flash", "gemini-flash-latest"]),
+    instruction="Answer using the available model.",
 )
 ```
 
-Communicate failure via state flags: `state["primary_failed"] = True`. Downstream agents read flags to decide behavior.
+`FallbackModel` remains experimental in 2.13. It tries each entry once for eligible HTTP errors; retries within one model belong in that model's configuration. Choose independently available model IDs/endpoints for a useful production fallback: a rolling alias may resolve to the primary model. Non-retriable failures propagate. Failover does not roll back already executed tools; use external idempotency keys when resuming work after failures.
 
 ### Human-in-the-Loop (HITL)
 
@@ -221,8 +225,8 @@ Layered defense -- never rely on a single mechanism.
 **Rules:**
 - Use a fast, cheap model (Gemini Flash) for guardrail evaluation, temperature=0
 - Return guardrail results as structured JSON (compliance_status, triggered_policies)
-- Set `allow_delegation=False` on guardrail agents
-- Default to "compliant" on ambiguity -- only block on demonstrable violations
+- Give a guardrail only the tools/sub-agents its policy needs; `allow_delegation` is not an ADK `LlmAgent` field
+- Define handling for ambiguous decisions in application policy; require explicit authorization before sensitive actions
 - Log all guardrail decisions for audit
 
 **Safety policy categories to cover:**
@@ -381,7 +385,7 @@ Embed structured reasoning in agent instructions for complex tasks.
 | Parallel | Concurrent fan-out | `ParallelAgent` |
 | Network | Peers communicate directly | Custom with `sub_agents` + transfer |
 
-**Rule of thumb:** If an agent needs more than 5-7 tools or handles unrelated domains, split into multiple agents.
+Split unrelated responsibilities when this improves routing or isolation. Tool count alone does not justify adding agents.
 
 ### State Management Across Agents
 
@@ -413,3 +417,9 @@ Embed structured reasoning in agent instructions for complex tasks.
 - Manage context window actively: use `EventsCompactionConfig` to auto-summarize, or prune manually
 - Use session rewind (`runner.rewind_async()`) to roll back to known-good states
 - Enable resumability (`ResumabilityConfig`) for fault-tolerant long-running workflows
+
+## Versioned Sources
+
+- [Model failover contract](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/models/_fallback_model.py)
+- [Sequential agent exception propagation](https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/agents/sequential_agent.py)
+- [Classifier routing](https://github.com/google/adk-python/blob/v2.13.0/docs/guides/labs/classifiers/classifier_node/index.md)

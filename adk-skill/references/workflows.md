@@ -1,249 +1,245 @@
-# ADK Workflows Reference (2.0+)
+# ADK Workflows Reference (Python 2.13.0)
 
 ## Graph-based Workflows: Routing Patterns
 
 ### Conditional Routing
 
-Route to different handlers based on node output using `Event(route=...)`:
+Functions can emit `Event(route=...)` to choose outgoing edges. This complete, deterministic example can run without a model:
 
 ```python
-from google.adk import Workflow, Event
-from google.adk.agents import LlmAgent
-
-classifier = LlmAgent(
-    name="classifier", model="gemini-flash-latest",
-    instruction="Classify input as 'BUG', 'SUPPORT', or 'LOGISTICS'.",
-    output_schema=str,
-)
+from google.adk import Event, Workflow
+from google.adk.workflow import DEFAULT_ROUTE
 
 def router(node_input: str):
-    routes = [r.strip() for r in node_input.split(",")]
-    return Event(route=routes)
+    return Event(route=node_input.strip().upper())
 
-def handle_bug():       return Event(message="Handling bug...")
-def handle_support():   return Event(message="Handling support...")
-def handle_logistics(): return Event(message="Handling logistics...")
+def handle_bug():
+    return Event(message="Handling bug", output="bug")
+
+def handle_support():
+    return Event(message="Handling support", output="support")
+
+def handle_unknown():
+    return Event(message="Please clarify the request", output="unknown")
 
 root_agent = Workflow(
     name="routing_workflow",
-    edges=[
-        ("START", classifier, router),
-        (router, {
-            "BUG": handle_bug,
-            "SUPPORT": handle_support,
-            "LOGISTICS": handle_logistics,
-        }),
-    ],
+    edges=[("START", router, {
+        "BUG": handle_bug,
+        "SUPPORT": handle_support,
+        DEFAULT_ROUTE: handle_unknown,
+    })],
 )
 ```
 
-### Multi-Route (Fan-out to multiple handlers)
+For semantic classification, replace `router` with an agent or an experimental `ClassifierNode` (`google.adk.labs.classifiers`). The classifiers include `LlmClassifier`; `TypesafeClassifier` is a separate integration. Check their typed question/answer contracts before choosing one.
 
-When a node outputs multiple routes, the message is delivered to all matching handlers:
+### Fan-out and Fan-in
 
-```python
-def router(node_input: str):
-    return Event(route=["BUG", "SUPPORT"])  # Routes to both handlers
-```
-
-Fan-out can also be declared in the edge dict itself — a tuple value triggers both targets:
+Use a `JoinNode` before producing one final result. Multiple terminal nodes producing outputs cause an error; yielding only messages does not produce node output.
 
 ```python
-(classifier, {"BUG": (handle_bug, audit_log), "SUPPORT": handle_support})
+from typing import Any
+from google.adk import Workflow
+from google.adk.workflow import JoinNode
+
+def word_count(node_input: str) -> int:
+    return len(node_input.split())
+
+def shout(node_input: str) -> str:
+    return node_input.upper()
+
+join = JoinNode(name="join")
+
+def report(node_input: dict[str, Any]) -> str:
+    return f"{node_input['shout']} ({node_input['word_count']} words)"
+
+root_agent = Workflow(
+    name="fan_out_workflow",
+    edges=[("START", (word_count, shout), join, report)],
+)
 ```
 
-### Edge Syntax Reference
+Routing maps also accept tuples of targets, including `{DEFAULT_ROUTE: (a, b)}` since 2.10. A node may have several default edges; all matching fallback targets fire.
+
+### Edge Syntax and Validation
 
 | Form | Meaning |
 |------|---------|
-| `("START", a)` | Entry edge |
-| `("START", a, b, c)` | Chain shorthand — expands to `a→b→c` |
-| `(a, {"r1": x, "r2": y})` | Dict routing on emitted route values |
-| `(a, x, "r1")` | Three-tuple routed edge (single route per edge) |
-| `(a, {"__DEFAULT__": x})` | Fallback when no explicit route matches |
+| `("START", a, b, c)` | Sequential chain |
+| `("START", (a, b), join)` | Parallel branches followed by a join |
+| `(a, {"success": b, DEFAULT_ROUTE: fallback})` | Conditional routing |
+| `Edge(from_node=a, to_node=b, route="success")` | Explicit routed edge; requires node objects |
 
-Rules enforced by graph validation:
-- Edges leaving `START` cannot declare routes.
-- Only one `__DEFAULT__` target per source node (`DEFAULT_ROUTE = "__DEFAULT__"`).
-- Duplicate edges between the same pair of nodes are rejected.
-- All nodes must be reachable from `START`; cycles are rejected.
+Import `Edge`, `START`, `DEFAULT_ROUTE`, `JoinNode`, and `node` from `google.adk.workflow`. `START` is not exported by `google.adk`. Plain functions work in chain tuples; wrap them with `@node()` or `FunctionNode(func=...)` for explicit `Edge` objects.
 
-### Data Flow Between Nodes
+Graph construction validates reachable/unique nodes, compatible edge schemas and valid routing. Unconditional cycles fail; conditional cycles are allowed. Bound loop iterations in your state or orchestration logic. Duplicate edges with overlapping routes fail; disjoint routes between the same two nodes are valid.
 
-Nodes pass data via typed return values. Agent nodes use `input_schema`/`output_schema` (Pydantic):
+### Data Binding and Output
 
-```python
-from pydantic import BaseModel
-
-class CityTime(BaseModel):
-    time_info: str
-    city: str
-
-city_agent = LlmAgent(
-    name="city_lookup", model="gemini-flash-latest",
-    instruction="Return a random city name.", output_schema=str,
-)
-
-def lookup_time(city: str) -> CityTime:
-    return CityTime(time_info="10:10 AM", city=city)
-
-reporter = LlmAgent(
-    name="reporter", model="gemini-flash-latest",
-    input_schema=CityTime,
-    instruction="Report: It is {time_info} in {city} right now.",
-)
-
-root_agent = Workflow(
-    name="time_workflow",
-    edges=[("START", city_agent, lookup_time, reporter)],
-)
-```
-
----
+- `ctx: Context` receives the workflow context; `node_input` receives the predecessor's value.
+- Other function parameters read same-named `ctx.state` keys by default. Use `@node(parameter_binding="node_input")` to bind them from an input dict instead.
+- Type hints drive validation and coercion. A missing required state key fails before the function body executes.
+- `Event(output=value)` passes data downstream; `Event(message="...")` displays text. Use both when needed. Plain returned values become node output.
+- Agent nodes can declare `input_schema` and `output_schema`; function-node schemas are inferred from annotations. Align source and destination schemas when both are declared.
 
 ## Dynamic Workflows
 
-### Loops and Conditional Branching
-
-Use standard Python control flow inside a `@node(rerun_on_resume=True)` orchestrator:
+### Bounded Loops and Stable Execution IDs
 
 ```python
-from google.adk import Context
+from google.adk import Context, Workflow
 from google.adk.workflow import node
 
-@node(name="lint_check")
-def lint(code: str) -> str:
-    # Simulate: return findings or empty string if clean
-    return "" if len(code) > 100 else "Code too short; add error handling."
-
-@node(name="fix_code")
-def fix(code: str) -> str:
-    return code + "\n# error handling added"
+@node()
+def revise(node_input: str) -> str:
+    return node_input + "!"
 
 @node(rerun_on_resume=True)
-async def code_workflow(ctx: Context, user_request: str) -> str:
-    code = await ctx.run_node(coder_agent, user_request)
-    findings = await ctx.run_node(lint, code)
+async def orchestrator(ctx: Context, node_input: str) -> str:
+    result = node_input
+    for index in range(3):
+        result = await ctx.run_node(revise, result, run_id=f"revision-{index}")
+    return result
 
-    while findings:
-        code = await ctx.run_node(fix, code)
-        findings = await ctx.run_node(lint, code)
-
-    return code
+root_agent = Workflow(name="revision_workflow", edges=[("START", orchestrator)])
 ```
 
-### Parallel Execution
+An orchestrator replays its body on resume. Keep node order and `run_id` assignments deterministic so completed children can be replayed from history. Custom IDs must contain a non-numeric character. Avoid non-deterministic branching or external effects outside recorded child nodes.
 
-Use `asyncio.gather` to run nodes in parallel:
+Parallel dispatch uses `asyncio.gather(ctx.run_node(...), ...)`; bound concurrency for large inputs with parallel-worker options or a semaphore.
 
-```python
-import asyncio
-from google.adk import Context
-from google.adk.workflow import node
-
-@node(rerun_on_resume=True)
-async def parallel_supervisor(ctx: Context, items: list[str]) -> list[str]:
-    tasks = [ctx.run_node(worker_node, item) for item in items]
-    results = await asyncio.gather(*tasks)
-    return results
-```
-
-**Resume behavior:** On workflow resume after interruption, only failed/incomplete workers are re-executed.
-
-### Custom Execution IDs
-
-For stable, deterministic identifiers (e.g., per-item processing):
-
-```python
-@node(rerun_on_resume=True)
-async def process_orders(ctx: Context, orders: list[str]) -> list[str]:
-    tasks = [
-        ctx.run_node(process_order, order, run_id=f"order-{order.id}")
-        for order in orders
-    ]
-    return await asyncio.gather(*tasks)
-```
-
-Custom `run_id` must contain at least one non-numeric character to avoid collision with auto-generated sequential IDs.
-
-### Node Options and Retries
-
-The `@node` decorator accepts execution controls (2.4+):
+### Retry, Timeout and Failed-Node Resume
 
 ```python
 from google.adk.workflow import node, RetryConfig
 
 @node(
     retry_config=RetryConfig(max_attempts=3, initial_delay=1.0,
-                             backoff_factor=2.0, exceptions=["ValueError"]),
+                             backoff_factor=2.0, exceptions=[TimeoutError]),
     timeout=30.0,
-    parallel_worker=True, max_parallel_workers=8,  # run many items concurrently
+    parallel_worker=True, max_parallel_workers=8,
 )
-def fetch(url: str) -> str: ...
+async def fetch(node_input: str) -> str:
+    # Replace with an async HTTP client with its own request timeout.
+    return node_input
 ```
 
-`RetryConfig` fields: `max_attempts`, `initial_delay` (default 1.0s), `max_delay` (60.0s), `backoff_factor` (2.0), `jitter` (1.0; 0.0 disables), `exceptions` (names or classes). For fan-in synchronization after parallel branches, use `JoinNode`, which fires only after all its predecessors have triggered.
+`RetryConfig` also accepts `max_delay` and `jitter`. Retry only transient failures; return structured domain errors when retrying cannot help. Since 2.9, a failed node executes again on workflow resume instead of being replayed as completed. Successful child executions can be replayed; incomplete work can run again. Persist an idempotency key with external writes because a write followed by a failure may be repeated.
 
-### Strict Edge Schemas
-
-As of 2.5, graph validation fails fast when a source's `output_schema` does not equal the target's `input_schema` on an edge ("Schema mismatch on edge X -> Y"). Align Pydantic models or drop the schemas to rely on plain values.
-
----
+Synchronous functions/generator steps can use `RunConfig.tool_thread_pool_config`. Canceling a run or timing out a node cannot stop an already running worker thread or undo an external write.
 
 ## Human-in-the-Loop (HITL)
 
-### Graph-based HITL
+### Node Confirmation
 
-Use `RequestInput` events to pause the workflow:
+Since 2.12, `@node` and `FunctionNode` support `require_confirmation`. The decorator enables re-entry automatically when it is not explicitly configured; explicit `FunctionNode(...)` requires `rerun_on_resume=True`.
+
+```python
+from google.adk import Context, Workflow
+from google.adk.workflow import node
+
+@node(require_confirmation=True)
+def record_approval(ctx: Context, node_input: str) -> str:
+    ctx.state["approved_count"] = ctx.state.get("approved_count", 0) + 1
+    return f"Approved: {node_input}"
+
+root_agent = Workflow(name="approval_workflow", edges=[("START", record_approval)])
+```
+
+The function body does not execute before approval. An `adk_request_input` event carries the interrupt ID. Resume with `{"confirmed": True}` to execute it; `{"confirmed": False}` skips the body and produces `{"error": "This tool call is rejected."}`. A callable predicate can decide whether confirmation is needed from the bound arguments.
+
+Tool nodes also pause for confirmation (2.11+) and support authentication request/resume (2.12+). An authenticated function node uses `auth_config` and `rerun_on_resume=True`; resume the matching auth request, not a new invocation.
+
+### Custom Requests
 
 ```python
 from google.adk.events import RequestInput
 
-def get_approval(node_input: str):
-    yield RequestInput(message="Please approve this request (Yes/No)")
+def ask_name(node_input: str):
+    yield RequestInput(
+        interrupt_id="name-request", message="What is your name?",
+        response_schema=dict[str, str],
+    )
 ```
 
-### Dynamic Workflow HITL
+A leaf with default `rerun_on_resume=False` hands the validated response to its successor. A dynamic parent that awaits a child should use `rerun_on_resume=True`. For a node that needs to inspect its own resumed response, set re-entry and read `ctx.resume_inputs[interrupt_id]`.
 
-Yield `RequestInput` from a node, await the human response in the orchestrator:
+### Resuming a RequestInput
+
+Use the emitted `interruptId` as the function-response ID and retain the paused invocation ID. This helper assumes the `user` user ID used by the example runner:
 
 ```python
-from google.adk.events import RequestInput
+from google.genai import types
 
-@node(rerun_on_resume=False)  # Handoff: resume payload goes to successor
-async def get_user_approval(ctx: Context, node_input: str):
-    yield RequestInput(message="Please approve this request (Yes/No)")
-
-@node(rerun_on_resume=True)   # Re-entry: node body re-runs on resume
-async def handle_process(ctx: Context, node_input: str) -> str:
-    user_response = await ctx.run_node(get_user_approval)
-    return "Approved" if user_response.lower() == "yes" else "Denied"
+async def resume_input(runner, session_id, invocation_id, interrupt_id, response):
+    message = types.Content(role="user", parts=[types.Part(
+        function_response=types.FunctionResponse(
+            id=interrupt_id, name="adk_request_input", response=response,
+        ),
+    )])
+    return [event async for event in runner.run_async(
+        user_id="user", session_id=session_id,
+        invocation_id=invocation_id, new_message=message,
+    )]
 ```
 
-**Key rules for HITL:**
-- Parent orchestrator nodes MUST set `rerun_on_resume=True` to handle interruptions.
-- Leaf nodes requesting input typically use `rerun_on_resume=False` (handoff mode).
-- Never catch `BaseException` in tools — it traps `NodeInterruptedError`, breaking HITL.
-- 2.5+ adds HITL resumption for standalone nodes and `NodeTool` — a paused tool/node resumes without re-running its parent graph.
+Enable `App(..., resumability_config=ResumabilityConfig(is_resumable=True))` and persistent session storage for recovery across process restarts. In-memory sessions only survive while their process does. Never swallow `BaseException`: interrupts and cancellation must propagate.
 
----
+### Persistent Session Setup
 
-## Collaboration Modes in Workflows
+Install `pip install "google-adk[db]==2.13.0"`. Recreate this runner with the same application name and database URL on restart; retain the user's session and invocation IDs. For the approval example above:
 
-| Mode | User Interaction | Control Flow | Parallel | Return to Parent |
-|------|-----------------|-------------|----------|-----------------|
-| `chat` (default as sub-agent) | Full interaction | Agent controls until handoff | No | Manual (transfer) |
-| `task` | Clarification only | Agent controls until complete | No | Automatic (`complete_task`) |
-| `single_turn` (default as node) | Disallowed | Returns immediately after task | Yes | Automatic (with result) |
+```python
+from google.adk.apps import App, ResumabilityConfig
+from google.adk.runners import Runner
+from google.adk.sessions import DatabaseSessionService
 
-**Note:** Do NOT set `mode` on the root agent. Task-mode agents cannot have sub-agents.
+def persistent_runner(root_agent, db_url):
+    return Runner(
+        app=App(name="approval", root_agent=root_agent,
+                resumability_config=ResumabilityConfig(is_resumable=True)),
+        session_service=DatabaseSessionService(db_url=db_url),
+    )
+```
 
----
+Use an async-driver URL such as `sqlite+aiosqlite:////absolute/path/sessions.db` on retained storage. Close each runner with `await runner.close()`. SQLite is suitable for local persistence; choose a supported shared database for multiple hosts. Function-only workflows need no model credentials.
+
+## Cooperative Cancellation (2.11+)
+
+Pass an `asyncio.Event` as `abort_signal` to `Runner.run_async`. Set it from the request owner to cancel in-flight work. The `/run_sse` endpoint sets it when the client disconnects. Async tools must propagate `asyncio.CancelledError` after cleanup; sync threads and external side effects need their own cancellation/idempotency strategy.
+
+```python
+import asyncio
+
+async def run_with_abort(runner, session_id, message, abort_signal: asyncio.Event):
+    return [event async for event in runner.run_async(
+        user_id="user", session_id=session_id, new_message=message,
+        abort_signal=abort_signal,
+    )]
+```
+
+## Collaboration Modes
+
+| Mode | User Interaction | Return to Parent |
+|------|-----------------|------------------|
+| `chat` | Conversation until handoff | Transfer |
+| `task` | May ask for clarification while working | `finish_task` with validated output |
+| `single_turn` | No user interaction | Automatic result |
+
+Set modes on sub-agents to control delegation. The root runs as a conversation entry point; do not use its mode to request delegation behavior. Task wrappers support nested sub-agent delegation and resumption in 2.12+. For an inline specialist that may pause/resume, prefer `mode="single_turn"` under `sub_agents` over `AgentTool`, whose separate nested session cannot resume unresolved long-running tools.
 
 ## Known Limitations
 
-- **Live streaming** is not supported in graph-based workflows.
-- Some third-party integrations may not be compatible with graph-based workflows.
-- **chat-mode agents in graphs**: only reachable directly from `START` (they need conversational history, not node inputs). Incoming edges from other nodes raise a validation error telling you to use `mode="single_turn"`.
-- **task-mode nodes** were disabled at 2.0; 2.5 re-enables them with state-based resumption, so task agents survive pause/resume inside graphs.
-- Legacy orchestrators (`SequentialAgent`/`ParallelAgent`/`LoopAgent`) are rejected if embedded as Workflow nodes (2.5 validation) — compose graphs from agents, functions, and dynamic nodes instead.
+- Graph workflows do not support Live streaming.
+- Explicit `chat`-mode nodes may only follow `START`; use `single_turn` to consume predecessor output.
+- Template orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) cannot be embedded as graph nodes. Use functions, agent nodes or nested `Workflow` objects.
+- Recovery needs retained session events; rewound invocations are filtered during rehydration. Rewind cannot undo external effects.
+
+## Versioned Sources
+
+- [Graph validation and routing](https://github.com/google/adk-python/blob/v2.13.0/docs/guides/workflow/graph/index.md)
+- [Function binding, confirmation and authentication](https://github.com/google/adk-python/blob/v2.13.0/docs/guides/workflow/function_node/index.md)
+- [2.9 failed-node resume changes](https://github.com/google/adk-python/releases/tag/v2.9.0)
+- [2.11 cancellation and tool confirmation](https://github.com/google/adk-python/releases/tag/v2.11.0)
+- [2.12 node confirmation and nested task resumption](https://github.com/google/adk-python/releases/tag/v2.12.0)

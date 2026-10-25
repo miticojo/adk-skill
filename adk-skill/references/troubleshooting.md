@@ -8,7 +8,7 @@
 
 **Causes and fixes:**
 
-1. **Missing `__init__.py`** -- Every ADK agent package MUST have `__init__.py` that imports the agent module:
+1. **Missing `__init__.py`** -- Code-based ADK packages need `__init__.py` importing the agent module. YAML-only agents do not:
    ```python
    # my_agent/__init__.py
    from . import agent
@@ -17,7 +17,8 @@
 2. **Missing `root_agent` variable** -- The framework entry point must be a module-level variable named exactly `root_agent`:
    ```python
    # my_agent/agent.py
-   root_agent = Agent(name="my_agent", ...)
+   from google.adk.agents import LlmAgent
+   root_agent = LlmAgent(name="my_agent")
    ```
    Not `agent`, not `my_agent`, not `ROOT_AGENT` (Python). Must be `root_agent`.
 
@@ -49,7 +50,7 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 **Symptom:** `ImportError: cannot import name 'Agent' from 'google.adk'`
 
 **Fixes:**
-- Ensure Python 3.10+: `python --version`
+- Ensure Python 3.11+ for ADK 2.12+: `python --version`
 - Install with correct extras: `pip install google-adk` (base) or `pip install google-adk[a2a]` (A2A support)
 - Check for conflicting google packages: `pip list | grep google`
 
@@ -72,7 +73,8 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 | `Schema mismatch on edge X -> Y` | Align the source's `output_schema` with the target's `input_schema`, or drop one side |
 | chat-mode agent after a non-START node | Chat agents need conversation history — set `mode="single_turn"` |
 | Routes on an edge leaving `START` | Move routing to a downstream node |
-| More than one `__DEFAULT__` target from a node | Keep one fallback target per source |
+| Several terminal nodes produce output | Join parallel branches with `JoinNode` before returning a single final result |
+| Missing function parameter in state | Name predecessor input `node_input`, or use `parameter_binding="node_input"` for dict-field binding |
 | Legacy orchestrator (`SequentialAgent` etc.) inside a graph | Compose from agents/functions/dynamic nodes instead |
 
 ### Agent Returns Empty / No Response
@@ -88,8 +90,8 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 **Fixes:**
 1. Use `output_key` on Agent A so its output is written to `state["key"]`.
-2. Agent B reads via `state['key']` in its instruction or tool.
-3. Both agents must be sub-agents of the same parent (SequentialAgent, ParallelAgent, etc.) to share state scope.
+2. Agent B uses `{key}` in its instruction, or `tool_context.state["key"]` in a tool. Literal `state['key']` text is not interpolated.
+3. Verify both agents run in the same session and the intended branch/isolation scope; sharing a direct parent is not a requirement.
 4. Verify scope prefix: `state["key"]` is session-scoped. Use `app:key` for app-wide, `user:key` for user-wide.
 
 ### LoopAgent Runs Forever
@@ -107,7 +109,7 @@ GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 **Rules:**
 - `before_tool_callback`: Return `None` to proceed, return `dict` to skip tool with that response.
-- `before_model_callback`: Return `None` to proceed, return `types.Content` to skip model call.
+- `before_model_callback`: Return `None` to proceed, return `LlmResponse(content=types.Content(...))` to skip the model call (`from google.adk.models import LlmResponse`).
 - `before_agent_callback`: Return `None` to proceed, return `types.Content` to skip agent entirely.
 
 ---
@@ -130,7 +132,7 @@ The base `google-adk` package does not include A2A dependencies (httpx, a2a-sdk,
 
 **Checklist:**
 1. Remote agent server is running (`adk api_server` or `to_a2a()` app started)
-2. Agent card URL is correct (default: `http://localhost:8000/.well-known/agent.json`)
+2. Agent card URL is correct (default: `http://localhost:8000/.well-known/agent-card.json`)
 3. No firewall blocking the port
 4. Remote agent's `root_agent` is properly defined
 
@@ -169,7 +171,7 @@ def test_a2a():
 **Fixes:**
 - Verify MCP server starts independently: run the command from `StdioServerParameters` manually
 - Check for missing environment variables the MCP server needs
-- Use `SseConnectionParams` instead of `StdioConnectionParams` for remote MCP servers
+- Use `StreamableHTTPConnectionParams` for remote MCP servers; use SSE only for servers that require the legacy transport
 
 ---
 
@@ -180,7 +182,7 @@ def test_a2a():
 **Symptom:** Tests pass locally but assertions fail on event content.
 
 **Tips:**
-1. Always check the last event for final response: `events[-1].content.parts[0].text`
+1. Filter with `event.is_final_response()`, guard missing content/parts, and collect non-thought text parts. The last event may contain only metadata or a tool result.
 2. Use `event.author` to filter events by agent name
 3. For multi-agent tests, collect all events and filter by author
 4. Use `@pytest.mark.asyncio` and `async def test_*` for async runner tests
@@ -257,8 +259,8 @@ root_agent = Agent(
 ## Performance Tips
 
 - Use `gemini-flash-latest` for most agents, reserve `gemini-3.1-pro-preview` for complex reasoning
-- Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
-- Split agents with 5+ tools into focused specialists
+- Configure sampling/reasoning only with parameters supported by the chosen provider/model
+- Split unrelated tool domains when this improves routing and responsibility boundaries
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing
 - Keep agent hierarchies max 3-4 levels deep
 - Enable context compaction (`EventsCompactionConfig`) for long conversations
@@ -267,6 +269,19 @@ root_agent = Agent(
 ---
 
 ## ADK 1.x to 2.0 Migration
+
+### Upgrading from 2.7 to 2.13
+
+- ADK 2.12+ requires Python 3.11+. Pin the target version and matching official constraints file when reproducing an environment.
+- Failed workflow nodes run again on resume (2.9+). Use durable idempotency keys for external writes; retained checkpoints do not provide exactly-once execution.
+- Confirmation/authentication nodes must re-enter after user input. `@node(require_confirmation=True)` enables this by default; explicit `FunctionNode` needs `rerun_on_resume=True`.
+- Pass `abort_signal=asyncio.Event()` to the runner (2.11+). Cancellation does not undo external effects or stop a blocking worker thread.
+- ADK 2.13 defaults to `otel_semconv_1_44`; dashboards that queried `call_llm` need migration. `ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36` temporarily retains the legacy schema.
+- Instruction templates preserve `${var}` and escaped braces literally (2.10+); use `{var}` for state injection.
+- Evaluation raises `ValueError` when no cases are evaluated (2.10+); fix empty datasets or case filters instead of treating the run as passed.
+- `InMemorySessionService.append_event` raises `SessionNotFoundError` for unknown sessions (2.9+); create/retrieve a session in the same service before appending.
+
+Sources: [2.9](https://github.com/google/adk-python/releases/tag/v2.9.0), [2.10](https://github.com/google/adk-python/releases/tag/v2.10.0), [2.12](https://github.com/google/adk-python/releases/tag/v2.12.0), [2.13](https://github.com/google/adk-python/releases/tag/v2.13.0).
 
 ### Breaking Changes
 
