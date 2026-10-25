@@ -17,7 +17,8 @@
 2. **Missing `root_agent` variable** -- The framework entry point must be a module-level variable named exactly `root_agent`:
    ```python
    # my_agent/agent.py
-   root_agent = Agent(name="my_agent", ...)
+   from google.adk.agents import LlmAgent
+   root_agent = LlmAgent(name="my_agent")
    ```
    Not `agent`, not `my_agent`, not `ROOT_AGENT` (Python). Must be `root_agent`.
 
@@ -258,8 +259,8 @@ root_agent = Agent(
 ## Performance Tips
 
 - Use `gemini-flash-latest` for most agents, reserve `gemini-3.1-pro-preview` for complex reasoning
-- Set `temperature=0.1-0.4` for deterministic tasks, `0.7-0.9` for creative tasks
-- Split agents with 5+ tools into focused specialists
+- Configure sampling/reasoning only with parameters supported by the chosen provider/model
+- Split unrelated tool domains when this improves routing and responsibility boundaries
 - Use `output_schema` (Pydantic) between pipeline stages for reliable data passing
 - Keep agent hierarchies max 3-4 levels deep
 - Enable context compaction (`EventsCompactionConfig`) for long conversations

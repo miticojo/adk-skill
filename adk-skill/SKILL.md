@@ -1,11 +1,11 @@
 ---
 name: adk-skill
-description: "Build single-agent and multi-agent systems using Google's Agent Development Kit (ADK) in Python, Java, Go, Kotlin, or TypeScript. Use when user says 'build an agent with ADK', 'create a Gemini agent', 'multi-agent pipeline', 'agentic workflow with graphs', 'agent collaboration', 'agent-to-agent protocol', 'managed agent', or mentions ADK, google-adk, Workflow, graph-based agent, agent memory service, agent artifacts, dynamic workflows, agent routing. Do NOT use for LangChain, CrewAI, AutoGen, or non-ADK agent frameworks."
+description: "Builds and migrates Google ADK agents in Python, Java, Go, Kotlin and TypeScript. Use for ADK workflows, tools, MCP/A2A, memory, artifacts, evaluation or deployment. Excludes standalone Gemini API tasks and LangChain, CrewAI or AutoGen projects."
 license: MIT
 compatibility: "Python examples verified with google-adk 2.13.0 and Python 3.11+. Other SDKs: Java 17+, Go 1.26.6+ for ADK v2.6, Node 24+. Requires Gemini API credentials or configured Google Cloud authentication for model calls. Optional integrations require package extras. Older ADK versions may lack the APIs shown here."
 metadata:
   author: Giorgio <miticojo@gmail.com>
-  version: "2.1"
+  version: "2.2.0"
   mcp-server: adk-docs
 ---
 
@@ -13,13 +13,13 @@ metadata:
 
 ## Overview
 
-ADK is Google's open-source framework for building AI agents powered by Gemini models. ADK 2.0+ introduces a **graph-based Workflow Runtime engine** where agents, tools, and functions are nodes in a composable execution graph. Supports single-agent, multi-agent, collaborative, and dynamic workflow architectures with built-in memory, artifacts, tools, callbacks, and deployment options.
+ADK is Google's open-source framework for building model-agnostic AI agents. This guide targets Python **2.13.0**. Its **Workflow Runtime** composes agents, tools and functions into graphs, with memory, artifacts, callbacks and deployment support. Verify the target SDK's versioned API before using examples; named application agents/tools in composition fragments must be supplied by the application.
 
 ## Critical Rules
 
 1. **Entry point is `root_agent`** — a module-level variable in `agent.py`, or a `Workflow` object for graph-based agents.
 2. **Code-based packages need `__init__.py`** importing the agent module: `from . import agent`. YAML-only agents do not.
-3. **Set `GOOGLE_API_KEY` in `.env`** or configure Vertex AI credentials before running.
+3. **Configure credentials for model calls.** Deterministic function-only workflows run without them.
 4. **In ADK 2.0, agents are nodes.** Do NOT override `_run_async_impl()` — use `BeforeAgentCallback` / `AfterAgentCallback` instead.
 5. **Do NOT append events directly** to `context.session.events`. Yield events from your node so the framework manages persistence and routing.
 6. **Never catch `BaseException` in tools** — it breaks HITL pause/resume and automatic retries.
@@ -47,7 +47,7 @@ This guide shows Python examples. For Java, Go, Kotlin, and TypeScript patterns,
 
 ## Prerequisites
 
-Python 3.11+ with `pip install "google-adk==2.13.0"`; set `GOOGLE_API_KEY` in `.env` or configure Google Cloud authentication. Other languages: Java 17+, Go 1.26.6+ (ADK v2.6), Node 24+. Install only needed extras, e.g. `[a2a]`, `[openai]`, `[mongodb]`, `[eval]`, `[bigquery-analytics]`; Jinja2 is optional.
+Python 3.11+ with `pip install "google-adk==2.13.0"`; model calls need `GOOGLE_API_KEY` or Google Cloud authentication. Other languages: Java 17+, Go 1.26.6+ (ADK v2.6), Node 24+. Install needed extras: `[db]`, `[a2a]`, `[openai]`, `[mongodb]`, `[eval]`, `[bigquery-analytics]`; Jinja2 is optional.
 
 ## Quick Reference
 
@@ -114,7 +114,7 @@ root_agent = LlmAgent(
     # model is optional — built-in default: gemini-3.5-flash
     description="Brief description for agent discovery",
     instruction="Detailed system prompt...",
-    tools=[...],
+    tools=[],
 )
 ```
 
@@ -298,6 +298,9 @@ Long-term memory persists across sessions. Agents retrieve memories with built-i
 
 ```python
 from google.adk.memory import InMemoryMemoryService
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
 memory_service = InMemoryMemoryService()  # Prototyping (or VertexAiMemoryBankService for prod)
@@ -310,7 +313,7 @@ agent = LlmAgent(
 
 runner = Runner(
     agent=agent, app_name="my_app",
-    session_service=session_service,
+    session_service=InMemorySessionService(),
     memory_service=memory_service,
 )
 ```
@@ -319,7 +322,7 @@ Backends include in-memory, SQLite, Vertex Memory Bank/RAG and experimental Mong
 
 ### Artifacts (Binary Data)
 
-Versioned binary data (files, images, audio):
+Versioned binary data (files, images, audio); continuing the runner example above:
 
 ```python
 from google.adk.artifacts import InMemoryArtifactService
@@ -328,7 +331,7 @@ artifact_service = InMemoryArtifactService()  # Or GcsArtifactService
 
 runner = Runner(
     agent=agent, app_name="my_app",
-    session_service=session_service,
+    session_service=InMemorySessionService(),
     artifact_service=artifact_service,
 )
 # In async tools: await tool_context.save_artifact(filename, part)
@@ -344,8 +347,14 @@ See [references/memory-artifacts.md](references/memory-artifacts.md).
 State is a shared dictionary across agents, tools, and callbacks. Scopes: `state["key"]` (session), `app:key` (app-wide), `user:key` (user-wide). Pass data between agents via `output_key` + `output_schema`. Instructions support `{var}` / `{prefix:var}` placeholders; opt-in Jinja2 templates (`use_jinja2=True`, 2.7+, optional dep) add conditionals, loops, and dotted access:
 
 ```python
-researcher = LlmAgent(name="researcher", output_key="findings", output_schema=ResearchOutput, ...)
-writer = LlmAgent(name="writer", instruction="Write a report based on {findings}.", ...)
+from google.adk.agents import LlmAgent, SequentialAgent
+from pydantic import BaseModel
+
+class ResearchOutput(BaseModel):
+    findings: list[str]
+
+researcher = LlmAgent(name="researcher", output_key="findings", output_schema=ResearchOutput)
+writer = LlmAgent(name="writer", instruction="Write a report based on {findings}.")
 pipeline = SequentialAgent(name="pipeline", sub_agents=[researcher, writer])
 ```
 
@@ -375,6 +384,7 @@ Use Pydantic models for typed, validated agent output:
 
 ```python
 from pydantic import BaseModel
+from google.adk.agents import LlmAgent
 
 class AnalysisResult(BaseModel):
     summary: str
@@ -393,7 +403,7 @@ agent = LlmAgent(
 ## Running and Testing
 
 ```bash
-pip install google-adk
+pip install "google-adk==2.13.0"
 export GOOGLE_API_KEY="your-key"
 adk run my_agent          # Interactive CLI
 adk web my_agent          # Web UI (includes Visual Builder)
@@ -435,7 +445,7 @@ Define eval cases in `.test.json` files, run with `adk eval`, `pytest`, or web U
 
 ## Model Selection
 
-Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gemini-flash-latest`; for regional endpoints use a pinned ID (e.g. `gemini-3.6-flash`, or `gemini-3.1-pro-preview` for complex reasoning). Non-Gemini: Claude, Ollama, LiteLLM, vLLM, OCI GenAI; provider-prefixed Gemini IDs also accepted (2.4+). Configure via `generate_content_config=types.GenerateContentConfig(...)` — `temperature`/`top_p`/`top_k` are deprecated on the Gemini API.
+The built-in default remains `gemini-3.5-flash`. `gemini-flash-latest` is a rolling alias; choose a pinned model offered by the provider/region for reproducible deployments. Provider sampling/reasoning parameters differ: inspect the selected model's supported configuration. OpenAI adapters use `google.adk.integrations.openai` and the `[openai]` extra; other provider patterns are in the advanced reference.
 
 ## Design Patterns
 
@@ -461,23 +471,6 @@ Built-in default is `gemini-3.5-flash`. Docs examples use the rolling alias `gem
 - Include a fallback route for unclear inputs in graph edges.
 
 See also: [references/workflows.md](references/workflows.md) (graph routing, HITL, dynamic loops) | [references/advanced-patterns.md](references/advanced-patterns.md) (Agent Config, deployment, AG-UI) | [references/design-patterns.md](references/design-patterns.md) (chaining, reflection, planning) | [references/a2a-protocol.md](references/a2a-protocol.md) (A2A server/client) | [references/memory-artifacts.md](references/memory-artifacts.md) (memory backends, artifacts) | [references/troubleshooting.md](references/troubleshooting.md) (debugging, 1.x->2.0 migration).
-
-## Decision Guide
-
-Workflow-type selection: see the Quick Reference table above. Tool types:
-
-```
-Simple function? -> Python function with type hints
-Need state access? -> Add ToolContext parameter
-Delegate to another agent? -> AgentTool
-Remote agent over network? -> RemoteA2aAgent
-External MCP server? -> MCPToolset
-REST API from spec? -> OpenAPIToolset
-Database access? -> ToolboxToolset
-Web search? -> google_search (built-in)
-Cross-session memory? -> PreloadMemoryTool / LoadMemory
-Modular skill package? -> SkillToolset
-```
 
 ## Limitations
 

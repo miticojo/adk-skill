@@ -186,6 +186,25 @@ async def resume_input(runner, session_id, invocation_id, interrupt_id, response
 
 Enable `App(..., resumability_config=ResumabilityConfig(is_resumable=True))` and persistent session storage for recovery across process restarts. In-memory sessions only survive while their process does. Never swallow `BaseException`: interrupts and cancellation must propagate.
 
+### Persistent Session Setup
+
+Install `pip install "google-adk[db]==2.13.0"`. Recreate this runner with the same application name and database URL on restart; retain the user's session and invocation IDs. For the approval example above:
+
+```python
+from google.adk.apps import App, ResumabilityConfig
+from google.adk.runners import Runner
+from google.adk.sessions import DatabaseSessionService
+
+def persistent_runner(root_agent, db_url):
+    return Runner(
+        app=App(name="approval", root_agent=root_agent,
+                resumability_config=ResumabilityConfig(is_resumable=True)),
+        session_service=DatabaseSessionService(db_url=db_url),
+    )
+```
+
+Use an async-driver URL such as `sqlite+aiosqlite:////absolute/path/sessions.db` on retained storage. Close each runner with `await runner.close()`. SQLite is suitable for local persistence; choose a supported shared database for multiple hosts. Function-only workflows need no model credentials.
+
 ## Cooperative Cancellation (2.11+)
 
 Pass an `asyncio.Event` as `abort_signal` to `Runner.run_async`. Set it from the request owner to cancel in-flight work. The `/run_sse` endpoint sets it when the client disconnects. Async tools must propagate `asyncio.CancelledError` after cleanup; sync threads and external side effects need their own cancellation/idempotency strategy.

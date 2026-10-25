@@ -1,15 +1,17 @@
 """Execute documented examples against ADK 2.13.0 without model or cloud calls.
 
 Run: python -m unittest discover -s validation -v
-Dependencies: google-adk[a2a,eval,openai,mcp]==2.13.0 (checked 2026-10-25).
+Dependencies: google-adk[a2a,db,eval,openai,mcp]==2.13.0 (checked 2026-10-25).
 """
 
 import math
 import asyncio
+import ast
 import os
 from pathlib import Path
 import re
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -63,6 +65,25 @@ class ToolExamples(unittest.TestCase):
         advisor = agent.tools[0]
         self.assertEqual(advisor.max_uses, 1)
         self.assertEqual(advisor.session_max_uses, 3)
+
+
+class DocumentationSyntax(unittest.TestCase):
+    def test_all_python_fences_parse(self):
+        for path in SKILL.rglob("*.md"):
+            blocks = re.findall(r"```python\n(.*?)\n\s*```", path.read_text(), re.S)
+            for index, code in enumerate(blocks):
+                with self.subTest(path=str(path.relative_to(SKILL)), block=index):
+                    compile(textwrap.dedent(code), str(path), "exec",
+                            flags=ast.PyCF_ONLY_AST | ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+
+    def test_a2a_v1_card_matches_installed_sdk(self):
+        import json
+        from a2a.types import AgentCard
+        from google.protobuf.json_format import ParseDict
+        text = (SKILL / "references/a2a-protocol.md").read_text()
+        card = json.loads(re.search(r"```json\n(.*?)\n```", text, re.S).group(1))
+        parsed = ParseDict(card, AgentCard())
+        self.assertEqual(parsed.supported_interfaces[0].protocol_version, "1.0")
 
 
 class IntegrationExamples(unittest.IsolatedAsyncioTestCase):
@@ -220,6 +241,33 @@ class WorkflowExamples(unittest.IsolatedAsyncioTestCase):
                 outputs = [event.output for event in resumed if event.output is not None]
                 self.assertIn("Approved: report" if accepted else
                               {"error": "This tool call is rejected."}, outputs)
+
+    async def test_confirmation_survives_runner_restart(self):
+        ns = example("references/workflows.md", "### Node Confirmation")
+        factory = example("references/workflows.md", "### Persistent Session Setup")["persistent_runner"]
+        with tempfile.TemporaryDirectory() as directory:
+            url = "sqlite+aiosqlite:///" + str(Path(directory) / "sessions.db")
+            first = factory(ns["root_agent"], url)
+            try:
+                session = await first.session_service.create_session(
+                    app_name="approval", user_id="user",
+                )
+                paused = await self.run_message(first, session, "durable report")
+                call = next(call for event in paused for call in event.get_function_calls()
+                            if call.name == "adk_request_input")
+            finally:
+                await first.close()
+            restarted = factory(ns["root_agent"], url)
+            try:
+                resume = example("references/workflows.md", "### Resuming a RequestInput")["resume_input"]
+                await resume(restarted, session.id, paused[0].invocation_id,
+                             call.args["interruptId"], {"confirmed": True})
+                stored = await restarted.session_service.get_session(
+                    app_name="approval", user_id="user", session_id=session.id,
+                )
+                self.assertEqual(stored.state["approved_count"], 1)
+            finally:
+                await restarted.close()
 
     async def test_failed_node_reexecutes_on_resume(self):
         attempts = []

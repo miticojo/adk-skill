@@ -271,7 +271,7 @@ Deploy the agent directory with a dedicated runtime identity (2.12+):
 
 ```bash
 adk deploy agent_engine --project=my-project --region=us-central1 \
-    --service_account=my-agent@my-project.iam.gserviceaccount.com my_agent
+    --service_account="$RUNTIME_SERVICE_ACCOUNT" my_agent
 ```
 
 Cloud deployments accept repeatable `--extra_packages` local file/directory paths (2.13). Avoid local package names that shadow installed dependencies. In 2.12 the Agent Platform integration moved to the 2.2 SDK surface (`agentplatform`); migrate direct `vertexai.preview` RAG/example-store imports using the installed SDK, rather than mixing old and new clients. Session TTL/expiration remains backend-specific.

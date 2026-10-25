@@ -1,62 +1,65 @@
-# SkillSpector baseline — findings listed here are suppressed on future scans.
-# Edit 'reason' fields and add glob 'rules' as needed. See docs/SUPPRESSION.md.
+# Reviewed documentation findings only; no wildcard suppression rules.
 version: 2
 scanner_version: 2.9.6
 rules: []
 fingerprints:
-- hash: sha256:02a9d4697edb9e887d17c3157073c9c20ea88a0661a8dbcd08e9945c3c389cc1
-  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+- hash: sha256:070c8702443564bba54e2dc069125d16314d5587bc9eb58288505cba020e75db
+  rule_id: RP1
   file: references/advanced-patterns.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:99ed94e9acae4ba5e00ed69734f3f1993227fd6344b4cff8ae19f574a75ed1c6
-  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  reason: 'Accepted existing documentation risk: optional third-party UI scaffolding
+    command; the skill does not execute it automatically or ship an MCP server.'
+- hash: sha256:920e30a0dcd8bbc779c3e55f90f11d4e332825af9eca16ee40e5032504624dee
+  rule_id: RP1
   file: references/evaluation.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:3e1f419bd637a8945da5873188f442aaa9d7c33fa3a4547aaa386f1eaafbf945
-  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  reason: 'Reviewed CLI documentation: npx invokes the local ADK CLI installed by
+    the example setup; no MCP server or executable is bundled.'
+- hash: sha256:b1fda0c25736a34d34de8b298dbb5163e510597a1ad422f3a8ec473ba7d1687a
+  rule_id: RP1
   file: references/evaluation.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:342ae35afd0e50c7899353f64627ab41411c59cb67295fe99f68376c699bcd6a
-  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
+  reason: 'Reviewed CLI documentation: npx invokes the local ADK CLI installed by
+    the example setup; no MCP server or executable is bundled.'
+- hash: sha256:d2d1c312b32027fc053c78a9fcd8095dbdc9834be07a214b7f3e5cc26fbf60a1
+  rule_id: RP1
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:a51a981fba85f73f9473b39c7196fa194c41966d688623e57839edfd688ed833
-  rule_id: RP1  # npx usage quoted verbatim from upstream tool docs (install/eval commands); not an MCP server we ship
-  file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:42c4c2cda2d3d4bae75289b69a8deb4e7607f904ade4cc64e51e82fd8b9243b4
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed CLI documentation: npx invokes the local ADK CLI installed by
+    the example setup; no MCP server or executable is bundled.'
+- hash: sha256:0f9703cf4728513879734776dad30e4868a684eec4f53cead9ef0245c690f0ed
+  rule_id: PE3
   file: SKILL.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:9cd9290b96912546899cd27f46d906696438e3f34782c10cc339817ddda1c6ba
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
-  file: references/a2a-protocol.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:e8b9ba0d4215a9ab963d550b420de9c8645723babf4dbb437be48a878d90dac0
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:93558f5dee8f74234278f58f617107f260f4654e92d6f142d53d469839175c8e
+  rule_id: PE3
   file: references/advanced-patterns.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:620433fdc62f3d049891327f321b0a960c0601f7c4272da30de62925269ba353
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:d71f6a54bac9efd45ebbb40c1bb7bf9fd8337b598b4c27be4b36d6af58d0c4a5
+  rule_id: PE3
   file: references/advanced-patterns.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:07cb9cbdeb7add057b9377f575e908119c6ccddab12d8fda196cc6d4b72a3f71
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:8fd9a734d602bf2f967467c4fec540c71cde16746803f5718e3acd5a5a4a264b
+  rule_id: PE3
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:c688066fcffa1af1306a679e96c5f9368954cd0caf24bc651a04166689cafe7e
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:b576a069bcc753f1cd4c19170d032487c15b62f9d181c053107dd991adbf1b93
+  rule_id: PE3
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:c4908e2d440b2bc9595fef640dab04b4249d0a0d5dc15f0b6590ef5f998096a7
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:bb08deeaad8494246e64e75bc27e62bffff2afd0ccbaf5cd7c01954eb927650c
+  rule_id: PE3
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:2aefd80195cedf0619834c8f4d2c27b170d1aa483bb0b22161e58f4e8abd8936
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:ead33217eba6bb74b85bd2bb2017f6c98b062fdd2f766dc2440cd4566afdbe8b
+  rule_id: PE3
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
-- hash: sha256:708a6781aa98b7cb49533e355e1bd1267a6a50cdc0e06da1d9725a6551c19107
-  rule_id: PE3  # .env appears in project-structure/setup documentation for GOOGLE_API_KEY; no credential access code
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
+- hash: sha256:79f7c539cf811ac7096c7fd5948444f7c40e633ef2becf7867f703b7191c78cc
+  rule_id: PE3
   file: references/multi-language.md
-  reason: Accepted finding (auto-generated baseline)
+  reason: 'Reviewed application setup documentation: .env paths configure the example
+    project; no skill script reads user credential files.'
