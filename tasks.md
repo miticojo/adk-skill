@@ -1,6 +1,6 @@
 # ADK 2.13 update
 
-Goal: verify the skill against ADK Python 2.13.0 and refresh the supported language references. Official tagged sources and package metadata checked on 2026-10-25. Work on `codex/adk-2.13-update`; the user has now authorized pushing the branch and opening a pull request to `main`.
+Goal: verify the skill against ADK Python 2.13.0 and refresh the supported language references. Official tagged sources and package metadata checked on 2026-10-25. The user has authorized merging PR #4 into `main`, publishing `v2.2.0`, and deleting the local and remote feature branches after merge.
 
 1. [x] P0: fix runtime requirements, artifact awaits, authentication, callbacks and unsafe examples. Gate: 3 executable documentation tests pass on 2.13.0; the same tests fail against the original examples.
 2. [x] P0: update workflow resumption, cancellation, confirmation and task delegation. Gate: 9 offline tests cover routing, join, dynamic dispatch, approval/rejection, failed-node resume, abort and the phase-1 examples.
@@ -11,8 +11,10 @@ Goal: verify the skill against ADK Python 2.13.0 and refresh the supported langu
 
 Progress: all six implementation phases complete. Independent forward testing also accepted/rejected a report across separate Python processes using SQLite: approval incremented 7 to 8; rejection retained 7. This exposed missing `[db]` setup and an unconditional credential requirement; both are corrected.
 
-Publication follow-up: project instructions consolidated into tracked `AGENTS.md` with a `CLAUDE.md` import, README activation and release guidance aligned, and 2.2.0 notes added to `CHANGELOG.md`. Documentation checks pass: seven local links, version metadata, import routing and 89 Python fences. These changes form a separate documentation commit for the authorized branch push and pull request to `main`. Merge and tag publication remain separate maintainer actions.
+Publication follow-up: project instructions consolidated into tracked `AGENTS.md` with a `CLAUDE.md` import, README activation and release guidance aligned, and dated 2.2.0 notes added to `CHANGELOG.md`. Documentation checks pass: seven local links, version metadata, import routing and 89 Python fences. The branch is published in [PR #4](https://github.com/miticojo/adk-skill/pull/4); its examples and validation CI jobs pass.
+
+Release closeout: merge PR #4 preserving phase commits, tag the merged `main` commit as `v2.2.0`, wait for both tag validation jobs and the publication job, then align the GitHub Release body with `CHANGELOG.md`. Verify the release and report attachments before deleting the merged local/remote branches. The canonical release is [v2.2.0](https://github.com/miticojo/adk-skill/releases/tag/v2.2.0).
 
 Validation limits: cloud deployment, real model conversations/evaluations, live audio, Android and KSP generation need separate authorized integration tests in the target environment. Native compilation was local; CI runs Python checks. The bundled skill-creator quick validator rejects the supported `compatibility` field; the repository's spec-aware schema and structural gates validate it, so the field is retained.
 
-Cleanup: removed task-created Python/tool environments, downloaded language runtimes/caches, reports, databases and scratch files. Existing ignored fixtures/credentials and shared package-manager caches are retained; no task server/process remains. The unmerged branch and phase commits are retained for review.
+Cleanup: task-created Python/tool environments, downloaded language runtimes/caches, reports, databases and scratch files were removed. Existing ignored fixtures/credentials and shared package-manager caches are retained; no task server/process remains. Phase commits are preserved in merge history; only merged feature branches are eligible for removal.

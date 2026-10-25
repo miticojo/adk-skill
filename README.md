@@ -6,7 +6,7 @@ An [Agent Skill](https://agentskills.io) for building single-agent and multi-age
 
 This skill gives your coding agent deep knowledge of ADK architecture, patterns, and best practices — covering workflow types, tools, callbacks, state management, memory, artifacts, multi-agent orchestration, testing, evaluation, and deployment across all supported languages.
 
-See [release notes](CHANGELOG.md) for the proposed 2.2.0 release, compatibility changes and verification limits. Contributor and agent instructions live in [AGENTS.md](AGENTS.md); the update's phase record is in [tasks.md](tasks.md).
+See [release notes](CHANGELOG.md) for version 2.2.0, compatibility changes and verification limits. Contributor and agent instructions live in [AGENTS.md](AGENTS.md); the update's phase record is in [tasks.md](tasks.md).
 
 ## What's Included
 
@@ -178,7 +178,7 @@ Every skill/test PR and release runs through automated gates ([workflow](.github
 
 **Releases**: pushing a tag (`v*`) runs the same gates and publishes a GitHub Release with the scan/quality reports attached (see [v2.1.0](https://github.com/miticojo/adk-skill/releases/tag/v2.1.0)). Accepted scanner false positives are recorded in `.skillspector-baseline.yaml`.
 
-Human-written release notes live in [CHANGELOG.md](CHANGELOG.md). Version 2.2.0 stays marked **Unreleased** until publication; a branch push or pull request does not publish it. The tag workflow generates GitHub release notes automatically. Merge and tag publication are separate maintainer actions.
+Human-written release notes live in [CHANGELOG.md](CHANGELOG.md). The tag workflow generates an initial GitHub Release with validation reports; its notes are then aligned with the corresponding changelog entry. A branch push or pull request does not publish a release. Merge and tag publication are separate maintainer actions.
 
 **Verify a release yourself** — both tools are deterministic and keyless:
 

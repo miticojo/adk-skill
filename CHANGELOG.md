@@ -1,8 +1,8 @@
 # Release Notes
 
-## 2.2.0 — Unreleased
+## 2.2.0 — 2026-10-25
 
-Updates the skill from ADK Python 2.7.1 coverage to **2.13.0**. APIs and package metadata were checked against official versioned sources on **2026-10-25**. This entry describes the proposed release; no tag or GitHub Release has been published.
+Updates the skill from ADK Python 2.7.1 coverage to **2.13.0**. APIs and package metadata were checked against official versioned sources on **2026-10-25**. Release tag: [`v2.2.0`](https://github.com/miticojo/adk-skill/releases/tag/v2.2.0).
 
 ### Compatibility and migration
 
